@@ -1,0 +1,52 @@
+# Dependencies
+/vendor/
+composer.lock
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+._*
+Thumbs.db
+
+# Cache
+.php-cs-fixer.cache
+.phpunit.cache/
+.phpunit.result.cache
+
+# Coverage reports
+coverage/
+clover.xml
+*.coverage
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.temp
+
+# Test artifacts
+tests/coverage/
+tests/reports/
+
+# Backup files
+*.bak
+*.backup
+
+# Package files
+*.tar.gz
+*.zip
+
+# IDE helpers
+.phpstorm.meta.php
+_ide_helper.php
+
+# Composer
+composer.phar
