@@ -1,4 +1,5 @@
 # Dependencies
+/larajax/
 /vendor/
 composer.lock
 

@@ -1,5 +1,11 @@
 # Hyperf Ajax
 
+[![PHP Version](https://img.shields.io/badge/php-%3E%3D8.3-blue.svg)](https://php.net/)
+[![Hyperf Version](https://img.shields.io/badge/hyperf-%5E3.2-green.svg)](https://hyperf.io/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
+[![PHPStan](https://img.shields.io/badge/phpstan-level%208-brightgreen.svg)]()
+
 Hyperf Ajax is a Hyperf backend package compatible with the Larajax browser protocol.
 It lets a normal Hyperf page controller answer HTML-driven AJAX handlers such as
 `data-request="onSave"` without creating a separate JSON API route for every UI
