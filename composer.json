@@ -29,8 +29,13 @@
             "Zotenme\\HyperfAjax\\": "src/"
         }
     },
+    "autoload-dev": {
+        "psr-4": {
+            "Zotenme\\HyperfAjax\\Tests\\": "tests/"
+        }
+    },
     "scripts": {
-        "test": "php tests/smoke.php",
+        "test": "phpunit",
         "analyse": "phpstan analyse --memory-limit=1024M",
         "cs-check": "php-cs-fixer fix --dry-run --diff",
         "cs-fix": "php-cs-fixer fix --diff"
