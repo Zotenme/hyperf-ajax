@@ -31,7 +31,8 @@ class ComponentContainer implements \IteratorAggregate
     protected array $components = [];
 
     public function __construct(
-        protected AjaxControllerInterface $controller
+        protected AjaxControllerInterface $controller,
+        protected ViewComponentFactory $componentFactory
     ) {}
 
     public function __get(string $key): ?object
@@ -43,12 +44,12 @@ class ComponentContainer implements \IteratorAggregate
     {
         if (property_exists($this->controller, 'components') && is_array($this->controller->components)) {
             foreach ($this->controller->components as $componentClass) {
-                $componentClass::createIn($this->controller)->bindToController();
+                $this->componentFactory->make($componentClass, $this->controller)->bindToController();
             }
         }
 
         foreach (static::$globalComponents as $componentClass) {
-            $componentClass::createIn($this->controller)->bindToController();
+            $this->componentFactory->make($componentClass, $this->controller)->bindToController();
         }
     }
 
@@ -67,7 +68,7 @@ class ComponentContainer implements \IteratorAggregate
 
         if (property_exists($instance, 'components') && is_array($instance->components)) {
             foreach ($instance->components as $componentClass) {
-                $componentClass::createIn($this->controller)->bindToController();
+                $this->componentFactory->make($componentClass, $this->controller)->bindToController();
             }
         }
     }

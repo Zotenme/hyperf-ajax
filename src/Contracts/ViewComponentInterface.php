@@ -14,11 +14,6 @@ namespace Zotenme\HyperfAjax\Contracts;
 
 interface ViewComponentInterface
 {
-    /**
-     * @param array<string, mixed> $config
-     */
-    public static function createIn(AjaxControllerInterface $controller, array $config = []): ViewComponentInterface;
-
     public function bindToController(): void;
 
     public function getController(): ?AjaxControllerInterface;
@@ -28,4 +23,14 @@ interface ViewComponentInterface
     public function getAlias(): string;
 
     public function setAlias(string $alias): void;
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getConfig(): array;
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    public function setConfig(array $config): void;
 }

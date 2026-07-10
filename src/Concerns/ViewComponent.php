@@ -13,7 +13,6 @@ declare(strict_types=1);
 namespace Zotenme\HyperfAjax\Concerns;
 
 use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
-use Zotenme\HyperfAjax\Contracts\ViewComponentInterface;
 
 trait ViewComponent
 {
@@ -23,19 +22,6 @@ trait ViewComponent
     public string $alias = '';
 
     public ?AjaxControllerInterface $controller = null;
-
-    /**
-     * @param array<string, mixed> $config
-     */
-    public static function createIn(AjaxControllerInterface $controller, array $config = []): ViewComponentInterface
-    {
-        $instance = new static();
-        $instance->controller = $controller;
-        $instance->config = $config;
-        $instance->alias = $config['alias'] ?? basename(str_replace('\\', '/', static::class));
-
-        return $instance;
-    }
 
     public function bindToController(): void
     {
@@ -64,5 +50,21 @@ trait ViewComponent
     public function setAlias(string $alias): void
     {
         $this->alias = $alias;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function getConfig(): array
+    {
+        return $this->config;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    public function setConfig(array $config): void
+    {
+        $this->config = $config;
     }
 }

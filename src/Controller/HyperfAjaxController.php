@@ -12,9 +12,24 @@ declare(strict_types=1);
 
 namespace Zotenme\HyperfAjax\Controller;
 
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\ContainerInterface;
 use Zotenme\HyperfAjax\Concerns\InteractsWithAjax;
+use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
 
-abstract class HyperfAjaxController
+abstract class HyperfAjaxController implements AjaxControllerInterface
 {
     use InteractsWithAjax;
+
+    public function __construct() {}
+
+    final protected function getAjaxContainer(): ContainerInterface
+    {
+        $container = ApplicationContext::getContainer();
+        if (! $container instanceof ContainerInterface) {
+            throw new \RuntimeException('The Hyperf application container must implement Hyperf\Contract\ContainerInterface.');
+        }
+
+        return $container;
+    }
 }

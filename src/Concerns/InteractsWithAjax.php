@@ -13,12 +13,14 @@ declare(strict_types=1);
 namespace Zotenme\HyperfAjax\Concerns;
 
 use Hyperf\Context\Context;
+use Hyperf\Contract\ContainerInterface;
 use Hyperf\HttpServer\Contract\ResponseInterface as HyperfResponseInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Zotenme\HyperfAjax\AjaxRequest;
 use Zotenme\HyperfAjax\AjaxResponse;
 use Zotenme\HyperfAjax\Component\ComponentContainer;
+use Zotenme\HyperfAjax\Component\ViewComponentFactory;
 use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
 use Zotenme\HyperfAjax\Contracts\ExceptionMapperInterface;
 use Zotenme\HyperfAjax\Contracts\ViewComponentInterface;
@@ -169,7 +171,7 @@ trait InteractsWithAjax
             throw new \RuntimeException('AJAX components can only be registered during an active AJAX request.');
         }
 
-        $context->components ??= new ComponentContainer($this);
+        $context->components ??= $this->makeAjaxComponentContainer();
         $context->components->bind($alias, $instance);
     }
 
@@ -179,6 +181,8 @@ trait InteractsWithAjax
 
         return $component instanceof ViewComponentInterface ? $component : null;
     }
+
+    abstract protected function getAjaxContainer(): ContainerInterface;
 
     /**
      * @param array<array-key, mixed> $parameters
@@ -266,9 +270,17 @@ trait InteractsWithAjax
             return;
         }
 
-        $context->components = new ComponentContainer($this);
+        $context->components = $this->makeAjaxComponentContainer();
         $context->components->register();
         $context->components->boot();
+    }
+
+    protected function makeAjaxComponentContainer(): ComponentContainer
+    {
+        return new ComponentContainer(
+            $this,
+            new ViewComponentFactory($this->getAjaxContainer())
+        );
     }
 
     protected function getAjaxExecutionContext(): ?AjaxExecutionContext
@@ -291,19 +303,6 @@ trait InteractsWithAjax
     protected function getAjaxExecutionContextKey(): string
     {
         return 'hyperf-ajax.execution.' . static::class . '.' . spl_object_id($this);
-    }
-
-    protected function getAjaxContainer(): mixed
-    {
-        if (property_exists($this, 'container')) {
-            return $this->container;
-        }
-
-        if (method_exists($this, 'getContainer')) {
-            return $this->getContainer();
-        }
-
-        return null;
     }
 
     protected function getAjaxExceptionMapper(): ExceptionMapperInterface

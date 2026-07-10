@@ -17,7 +17,7 @@ use Psr\Container\ContainerInterface;
 class MethodInvoker
 {
     public function __construct(
-        protected mixed $container = null
+        protected ContainerInterface $container
     ) {}
 
     /**
@@ -25,7 +25,7 @@ class MethodInvoker
      */
     public function invoke(callable $callable, array $parameters = []): mixed
     {
-        if (array_is_list($parameters) && $this->container === null) {
+        if ($parameters !== [] && array_is_list($parameters)) {
             return $callable(...$parameters);
         }
 
@@ -56,7 +56,6 @@ class MethodInvoker
             if (
                 $type instanceof \ReflectionNamedType
                 && ! $type->isBuiltin()
-                && $this->container instanceof ContainerInterface
                 && $this->container->has($type->getName())
             ) {
                 $arguments[] = $this->container->get($type->getName());

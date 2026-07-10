@@ -11,10 +11,15 @@ declare(strict_types=1);
  */
 require __DIR__ . '/bootstrap.php';
 
-use Psr\Container\ContainerInterface;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\ContainerInterface;
 use Swoole\Coroutine;
 use Zotenme\HyperfAjax\AjaxRequest;
 use Zotenme\HyperfAjax\AjaxResponse;
+use Zotenme\HyperfAjax\Component\ViewComponentFactory;
+use Zotenme\HyperfAjax\Concerns\ViewComponent;
+use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
+use Zotenme\HyperfAjax\Contracts\ViewComponentInterface;
 use Zotenme\HyperfAjax\Controller\HyperfAjaxController;
 use Zotenme\HyperfAjax\Exception\ValidationException as HyperfAjaxValidationException;
 use Zotenme\HyperfAjax\Support\AjaxExecutionContext;
@@ -27,6 +32,94 @@ class SmokeInjectedService
     {
         return 'injected';
     }
+}
+
+class SmokeContainer implements ContainerInterface
+{
+    /** @var array<string, mixed> */
+    private array $entries = [];
+
+    /**
+     * @param array<string, mixed> $entries
+     */
+    public function __construct(array $entries = [])
+    {
+        $this->entries = $entries;
+    }
+
+    public function get(string $id): mixed
+    {
+        return $this->entries[$id] ?? $this->make($id);
+    }
+
+    public function has(string $id): bool
+    {
+        return array_key_exists($id, $this->entries) || class_exists($id);
+    }
+
+    /**
+     * @param array<string, mixed> $parameters
+     */
+    public function make(string $name, array $parameters = []): mixed
+    {
+        if (! class_exists($name)) {
+            throw new RuntimeException("Class [{$name}] not found.");
+        }
+
+        /** @var class-string $name */
+        $reflection = new ReflectionClass($name);
+        $constructor = $reflection->getConstructor();
+        if (! $constructor) {
+            return $reflection->newInstance();
+        }
+
+        $arguments = [];
+        foreach ($constructor->getParameters() as $parameter) {
+            if (array_key_exists($parameter->getName(), $parameters)) {
+                $arguments[] = $parameters[$parameter->getName()];
+                continue;
+            }
+
+            $type = $parameter->getType();
+            if ($type instanceof ReflectionNamedType && ! $type->isBuiltin()) {
+                $arguments[] = $this->get($type->getName());
+                continue;
+            }
+
+            $arguments[] = $parameter->isDefaultValueAvailable()
+                ? $parameter->getDefaultValue()
+                : null;
+        }
+
+        return $reflection->newInstanceArgs($arguments);
+    }
+
+    public function set(string $name, mixed $entry): void
+    {
+        $this->entries[$name] = $entry;
+    }
+
+    public function unbind(string $name): void
+    {
+        unset($this->entries[$name]);
+    }
+
+    /**
+     * @param array<array-key, mixed>|callable|string $definition
+     */
+    public function define(string $name, mixed $definition): void
+    {
+        $this->entries[$name] = $definition;
+    }
+}
+
+class SmokeViewComponent implements ViewComponentInterface
+{
+    use ViewComponent;
+
+    public function __construct(
+        public readonly SmokeInjectedService $service
+    ) {}
 }
 
 function assert_true(bool $condition, string $message): void
@@ -134,25 +227,15 @@ $controller = new class {
     }
 };
 
-$result = (new MethodInvoker())->invoke([$controller, 'onSave'], ['id' => '42']);
+$service = new SmokeInjectedService();
+$container = new SmokeContainer([
+    SmokeInjectedService::class => $service,
+]);
+ApplicationContext::setContainer($container);
+
+$result = (new MethodInvoker($container))->invoke([$controller, 'onSave'], ['id' => '42']);
 
 assert_true($result === 'saved:42', 'method invoker resolves named parameters');
-
-$service = new SmokeInjectedService();
-
-$container = new class($service) implements ContainerInterface {
-    public function __construct(private object $service) {}
-
-    public function get(string $id): object
-    {
-        return $this->service;
-    }
-
-    public function has(string $id): bool
-    {
-        return $id === $this->service::class;
-    }
-};
 
 $diController = new class {
     public function onInjected(SmokeInjectedService $service): string
@@ -165,7 +248,7 @@ $diResult = (new MethodInvoker($container))->invoke([$diController, 'onInjected'
 
 assert_true($diResult === 'injected', 'method invoker resolves typed dependencies from container');
 
-$contextController = new class extends HyperfAjaxController {
+$contextController = new class extends HyperfAjaxController implements AjaxControllerInterface {
     public function activate(AjaxRequest $request): void
     {
         $this->setAjaxExecutionContext(new AjaxExecutionContext($request));
@@ -176,6 +259,25 @@ $contextController = new class extends HyperfAjaxController {
         $this->clearAjaxExecutionContext();
     }
 };
+
+$baseConstructor = new ReflectionMethod(HyperfAjaxController::class, '__construct');
+assert_true($baseConstructor->getNumberOfRequiredParameters() === 0, 'base controller constructor is compatible with Hyperf DI proxies');
+
+$component = (new ViewComponentFactory($container))->make(
+    SmokeViewComponent::class,
+    $contextController,
+    ['alias' => 'injectedForm', 'enabled' => true]
+);
+
+assert_true($component instanceof SmokeViewComponent, 'component factory creates the requested component type');
+if (! $component instanceof SmokeViewComponent) {
+    throw new RuntimeException('Component factory returned an unexpected type.');
+}
+
+assert_true($component->service === $service, 'component constructor dependencies are resolved by the container');
+assert_true($component->getController() === $contextController, 'component factory binds the controller');
+assert_true($component->getAlias() === 'injectedForm', 'component factory applies configured alias');
+assert_true($component->getConfig()['enabled'] === true, 'component factory applies component config');
 
 $firstRequest = new AjaxRequest();
 $firstRequest->handler = 'onFirst';
