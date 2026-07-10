@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace Zotenme\HyperfAjax\Concerns;
 
+use Hyperf\Context\Context;
 use Hyperf\HttpServer\Contract\ResponseInterface as HyperfResponseInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -24,16 +25,13 @@ use Zotenme\HyperfAjax\Contracts\ViewComponentInterface;
 use Zotenme\HyperfAjax\Exception\ComponentNotFound;
 use Zotenme\HyperfAjax\Exception\HandlerNameInvalid;
 use Zotenme\HyperfAjax\Exception\HandlerNotFound;
+use Zotenme\HyperfAjax\Support\AjaxExecutionContext;
 use Zotenme\HyperfAjax\Support\AjaxHelpers;
 use Zotenme\HyperfAjax\Support\ExceptionMapper;
 use Zotenme\HyperfAjax\Support\MethodInvoker;
 
 trait InteractsWithAjax
 {
-    protected ?AjaxRequest $ajaxRequest = null;
-
-    protected ?ComponentContainer $componentContainer = null;
-
     public function __get(string $name): mixed
     {
         if ($name === 'ajax') {
@@ -54,11 +52,14 @@ trait InteractsWithAjax
         string $action = '',
         array $parameters = []
     ): ?ResponseInterface {
-        $this->ajaxRequest = (new AjaxRequest())->fromRequest($request);
+        $ajaxRequest = (new AjaxRequest())->fromRequest($request);
 
-        if (! $this->ajaxRequest->hasAjaxHandler()) {
+        if (! $ajaxRequest->hasAjaxHandler()) {
             return null;
         }
+
+        $previousContext = $this->getAjaxExecutionContext();
+        $this->setAjaxExecutionContext(new AjaxExecutionContext($ajaxRequest));
 
         try {
             $this->initAjaxComponents();
@@ -66,6 +67,12 @@ trait InteractsWithAjax
             return $this->runAjaxAction($action, $parameters)->toPsrResponse($response);
         } catch (\Throwable $exception) {
             return $this->ajax()->exception($exception, $this->getAjaxExceptionMapper())->toPsrResponse($response);
+        } finally {
+            if ($previousContext instanceof AjaxExecutionContext) {
+                $this->setAjaxExecutionContext($previousContext);
+            } else {
+                $this->clearAjaxExecutionContext();
+            }
         }
     }
 
@@ -93,7 +100,7 @@ trait InteractsWithAjax
 
     public function getAjaxRequest(): ?AjaxRequest
     {
-        return $this->ajaxRequest;
+        return $this->getAjaxExecutionContext()?->request;
     }
 
     /**
@@ -101,7 +108,7 @@ trait InteractsWithAjax
      */
     public function ajaxAll(): array
     {
-        $request = $this->ajaxRequest?->request;
+        $request = $this->getAjaxRequest()?->request;
         if (! $request instanceof ServerRequestInterface) {
             return [];
         }
@@ -117,7 +124,7 @@ trait InteractsWithAjax
 
     public function ajaxPost(?string $key = null, mixed $default = null): mixed
     {
-        $request = $this->ajaxRequest?->request;
+        $request = $this->getAjaxRequest()?->request;
         if (! $request instanceof ServerRequestInterface) {
             return $key === null ? [] : $default;
         }
@@ -157,13 +164,18 @@ trait InteractsWithAjax
             $instance->setAlias($alias);
         }
 
-        $this->componentContainer ??= new ComponentContainer($this);
-        $this->componentContainer->bind($alias, $instance);
+        $context = $this->getAjaxExecutionContext();
+        if (! $context instanceof AjaxExecutionContext) {
+            throw new \RuntimeException('AJAX components can only be registered during an active AJAX request.');
+        }
+
+        $context->components ??= new ComponentContainer($this);
+        $context->components->bind($alias, $instance);
     }
 
     public function getComponentInstance(string $alias): ?ViewComponentInterface
     {
-        $component = $this->componentContainer?->make($alias);
+        $component = $this->getAjaxExecutionContext()?->components?->make($alias);
 
         return $component instanceof ViewComponentInterface ? $component : null;
     }
@@ -173,7 +185,8 @@ trait InteractsWithAjax
      */
     protected function runAjaxAction(string $action, array $parameters): AjaxResponse
     {
-        $handler = $this->ajaxRequest?->handler ?? '';
+        $ajaxRequest = $this->getAjaxRequest();
+        $handler = $ajaxRequest?->handler ?? '';
         if ($handler === '') {
             throw new HandlerNotFound('AJAX handler not specified');
         }
@@ -199,8 +212,8 @@ trait InteractsWithAjax
 
         $response = AjaxResponse::wrap($result);
 
-        if ($this->ajaxRequest?->partialList && method_exists($this, 'makePartialForAjax')) {
-            foreach ($this->ajaxRequest->partialList as $partial) {
+        if ($ajaxRequest?->partialList && method_exists($this, 'makePartialForAjax')) {
+            foreach ($ajaxRequest->partialList as $partial) {
                 $response->partial($partial, $this->makePartialForAjax($partial));
             }
         }
@@ -213,13 +226,14 @@ trait InteractsWithAjax
      */
     protected function getAjaxHandlerMethod(string $action): ?array
     {
-        $handler = $this->ajaxRequest?->handler ?? '';
+        $ajaxRequest = $this->getAjaxRequest();
+        $handler = $ajaxRequest?->handler ?? '';
         if ($handler === '') {
             return null;
         }
 
-        if (($component = $this->ajaxRequest?->component) !== null && $component !== '') {
-            $componentObject = $this->componentContainer?->make($component);
+        if (($component = $ajaxRequest?->component) !== null && $component !== '') {
+            $componentObject = $this->getAjaxExecutionContext()?->components?->make($component);
             if ($componentObject) {
                 return [$componentObject, $handler];
             }
@@ -238,7 +252,7 @@ trait InteractsWithAjax
             return [$this, $handler];
         }
 
-        return $this->componentContainer?->getAjaxHandlerMethod($handler);
+        return $this->getAjaxExecutionContext()?->components?->getAjaxHandlerMethod($handler);
     }
 
     protected function initAjaxComponents(): void
@@ -247,9 +261,36 @@ trait InteractsWithAjax
             return;
         }
 
-        $this->componentContainer = new ComponentContainer($this);
-        $this->componentContainer->register();
-        $this->componentContainer->boot();
+        $context = $this->getAjaxExecutionContext();
+        if (! $context instanceof AjaxExecutionContext) {
+            return;
+        }
+
+        $context->components = new ComponentContainer($this);
+        $context->components->register();
+        $context->components->boot();
+    }
+
+    protected function getAjaxExecutionContext(): ?AjaxExecutionContext
+    {
+        $context = Context::get($this->getAjaxExecutionContextKey());
+
+        return $context instanceof AjaxExecutionContext ? $context : null;
+    }
+
+    protected function setAjaxExecutionContext(AjaxExecutionContext $context): void
+    {
+        Context::set($this->getAjaxExecutionContextKey(), $context);
+    }
+
+    protected function clearAjaxExecutionContext(): void
+    {
+        Context::destroy($this->getAjaxExecutionContextKey());
+    }
+
+    protected function getAjaxExecutionContextKey(): string
+    {
+        return 'hyperf-ajax.execution.' . static::class . '.' . spl_object_id($this);
     }
 
     protected function getAjaxContainer(): mixed

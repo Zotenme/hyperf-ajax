@@ -9,21 +9,15 @@ declare(strict_types=1);
  * @contact  zotenme@gmail.com
  * @license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
  */
-require __DIR__ . '/../src/Contracts/AjaxExceptionInterface.php';
-require __DIR__ . '/../src/Contracts/ExceptionMapperInterface.php';
-require __DIR__ . '/../src/Support/AjaxHelpers.php';
-require __DIR__ . '/../src/Support/ExceptionMapper.php';
-require __DIR__ . '/../src/Support/MethodInvoker.php';
-require __DIR__ . '/../src/Exception/ValidationException.php';
-require __DIR__ . '/../src/AjaxResponse.php';
-
-if (! interface_exists('Psr\Container\ContainerInterface')) {
-    eval('namespace Psr\Container; interface ContainerInterface { public function get(string $id); public function has(string $id): bool; }');
-}
+require __DIR__ . '/bootstrap.php';
 
 use Psr\Container\ContainerInterface;
+use Swoole\Coroutine;
+use Zotenme\HyperfAjax\AjaxRequest;
 use Zotenme\HyperfAjax\AjaxResponse;
+use Zotenme\HyperfAjax\Controller\HyperfAjaxController;
 use Zotenme\HyperfAjax\Exception\ValidationException as HyperfAjaxValidationException;
+use Zotenme\HyperfAjax\Support\AjaxExecutionContext;
 use Zotenme\HyperfAjax\Support\ExceptionMapper;
 use Zotenme\HyperfAjax\Support\MethodInvoker;
 
@@ -170,5 +164,41 @@ $diController = new class {
 $diResult = (new MethodInvoker($container))->invoke([$diController, 'onInjected']);
 
 assert_true($diResult === 'injected', 'method invoker resolves typed dependencies from container');
+
+$contextController = new class extends HyperfAjaxController {
+    public function activate(AjaxRequest $request): void
+    {
+        $this->setAjaxExecutionContext(new AjaxExecutionContext($request));
+    }
+
+    public function release(): void
+    {
+        $this->clearAjaxExecutionContext();
+    }
+};
+
+$firstRequest = new AjaxRequest();
+$firstRequest->handler = 'onFirst';
+$secondRequest = new AjaxRequest();
+$secondRequest->handler = 'onSecond';
+
+Coroutine::setTestCid(1);
+$contextController->activate($firstRequest);
+
+Coroutine::setTestCid(2);
+$contextController->activate($secondRequest);
+
+assert_true($contextController->getAjaxRequest()?->handler === 'onSecond', 'current coroutine receives its own AJAX context');
+
+Coroutine::setTestCid(1);
+assert_true($contextController->getAjaxRequest()?->handler === 'onFirst', 'AJAX context is isolated between coroutines');
+$contextController->release();
+
+assert_true($contextController->getAjaxRequest() === null, 'AJAX context can be cleared in one coroutine');
+
+Coroutine::setTestCid(2);
+assert_true($contextController->getAjaxRequest()?->handler === 'onSecond', 'clearing one coroutine preserves another');
+$contextController->release();
+Coroutine::setTestCid(-1);
 
 echo "Smoke tests passed.\n";
