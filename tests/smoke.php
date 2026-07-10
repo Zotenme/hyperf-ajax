@@ -295,6 +295,10 @@ assert_true($component->getController() === $contextController, 'component facto
 assert_true($component->getAlias() === 'injectedForm', 'component factory applies configured alias');
 assert_true($component->getConfig()['enabled'] === true, 'component factory applies component config');
 
+$componentResponse = $component->ajax()->update(['#message' => 'Saved from component']);
+assert_true($componentResponse->getOps()[0]['selector'] === '#message', 'components can create AJAX responses through the response factory');
+assert_true($component->ajax() !== $componentResponse, 'response factory creates a fresh response for each component call');
+
 $firstRequest = new AjaxRequest();
 $firstRequest->handler = 'onFirst';
 $secondRequest = new AjaxRequest();

@@ -13,13 +13,15 @@ declare(strict_types=1);
 namespace Zotenme\HyperfAjax\Component;
 
 use Hyperf\Contract\ContainerInterface;
+use Zotenme\HyperfAjax\AjaxResponseFactory;
 use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
 use Zotenme\HyperfAjax\Contracts\ViewComponentInterface;
 
 final class ViewComponentFactory
 {
     public function __construct(
-        private readonly ContainerInterface $container
+        private readonly ContainerInterface $container,
+        private readonly AjaxResponseFactory $responseFactory = new AjaxResponseFactory()
     ) {}
 
     /**
@@ -37,6 +39,7 @@ final class ViewComponentFactory
         }
 
         $component->setController($controller);
+        $component->setResponseFactory($this->responseFactory);
         $component->setConfig($config);
         $component->setAlias($config['alias'] ?? basename(str_replace('\\', '/', $componentClass)));
 

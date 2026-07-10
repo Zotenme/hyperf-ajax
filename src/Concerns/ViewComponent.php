@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 namespace Zotenme\HyperfAjax\Concerns;
 
+use Zotenme\HyperfAjax\AjaxResponse;
+use Zotenme\HyperfAjax\AjaxResponseFactory;
 use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
 
 trait ViewComponent
@@ -22,6 +24,18 @@ trait ViewComponent
     public string $alias = '';
 
     public ?AjaxControllerInterface $controller = null;
+
+    protected ?AjaxResponseFactory $responseFactory = null;
+
+    public function ajax(): AjaxResponse
+    {
+        return ($this->responseFactory ??= new AjaxResponseFactory())->create();
+    }
+
+    public function setResponseFactory(AjaxResponseFactory $responseFactory): void
+    {
+        $this->responseFactory = $responseFactory;
+    }
 
     public function bindToController(): void
     {

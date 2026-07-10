@@ -12,8 +12,15 @@ declare(strict_types=1);
 
 namespace Zotenme\HyperfAjax\Contracts;
 
+use Zotenme\HyperfAjax\AjaxResponse;
+use Zotenme\HyperfAjax\AjaxResponseFactory;
+
 interface ViewComponentInterface
 {
+    public function ajax(): AjaxResponse;
+
+    public function setResponseFactory(AjaxResponseFactory $responseFactory): void;
+
     public function bindToController(): void;
 
     public function getController(): ?AjaxControllerInterface;
