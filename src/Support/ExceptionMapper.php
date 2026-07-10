@@ -12,48 +12,50 @@ declare(strict_types=1);
 
 namespace Zotenme\HyperfAjax\Support;
 
-use Hyperf\Validation\ValidationException;
+use Hyperf\HttpMessage\Exception\HttpException;
+use Psr\Log\LoggerInterface;
 use Zotenme\HyperfAjax\AjaxResponse;
 use Zotenme\HyperfAjax\Contracts\AjaxExceptionInterface;
 use Zotenme\HyperfAjax\Contracts\ExceptionMapperInterface;
+use Zotenme\HyperfAjax\Exception\ValidationException;
 
 class ExceptionMapper implements ExceptionMapperInterface
 {
+    public function __construct(
+        protected ?LoggerInterface $logger = null,
+        protected bool $debug = false
+    ) {}
+
     public function map(\Throwable $exception): AjaxResponse
     {
         if ($exception instanceof AjaxExceptionInterface) {
             return (new AjaxResponse())->error()->data($exception->toAjaxData());
         }
 
-        if ($this->isValidationException($exception)) {
+        if ($exception instanceof ValidationException || $this->isHyperfValidationException($exception)) {
             return (new AjaxResponse())
                 ->error('', 422)
                 ->invalidFields($this->extractValidationErrors($exception));
         }
 
-        if ($status = $this->extractStatusCode($exception)) {
-            $message = $exception->getMessage() ?: $this->defaultStatusMessage($status);
-
-            return $status >= 500
-                ? (new AjaxResponse())->fatal($message, $status)
-                : (new AjaxResponse())->error($message, $status);
+        if ($exception instanceof HttpException) {
+            return $this->mapHttpException($exception);
         }
 
-        if ($exception instanceof \Exception) {
-            return (new AjaxResponse())->error($exception->getMessage());
-        }
+        $this->report($exception);
 
-        return (new AjaxResponse())->fatal($exception->getMessage() ?: 'An error occurred');
+        return (new AjaxResponse())->fatal(
+            $this->debug && $exception->getMessage() !== ''
+                ? $exception->getMessage()
+                : 'Internal Server Error'
+        );
     }
 
-    protected function isValidationException(\Throwable $exception): bool
+    protected function isHyperfValidationException(\Throwable $exception): bool
     {
-        return (
-            class_exists('Hyperf\Validation\ValidationException')
-            && $exception instanceof ValidationException
-        ) || method_exists($exception, 'errors')
-            || method_exists($exception, 'getValidator')
-            || property_exists($exception, 'validator');
+        $class = 'Hyperf\Validation\ValidationException';
+
+        return class_exists($class) && is_a($exception, $class);
     }
 
     /**
@@ -61,6 +63,10 @@ class ExceptionMapper implements ExceptionMapperInterface
      */
     protected function extractValidationErrors(\Throwable $exception): array
     {
+        if ($exception instanceof ValidationException) {
+            return $exception->errors();
+        }
+
         if (method_exists($exception, 'errors')) {
             return $this->normalizeValidationErrors($exception->errors());
         }
@@ -104,36 +110,37 @@ class ExceptionMapper implements ExceptionMapperInterface
         return [];
     }
 
-    protected function extractStatusCode(\Throwable $exception): ?int
+    protected function mapHttpException(HttpException $exception): AjaxResponse
     {
-        if (method_exists($exception, 'getStatusCode')) {
-            $status = (int) $exception->getStatusCode();
-            return $status > 0 ? $status : null;
+        $status = $exception->getStatusCode();
+        if ($status < 400 || $status > 599) {
+            $this->report($exception);
+
+            return (new AjaxResponse())->fatal('Internal Server Error');
         }
 
-        if (method_exists($exception, 'getCode')) {
-            $code = (int) $exception->getCode();
-            return $code >= 400 && $code <= 599 ? $code : null;
+        if ($status >= 500) {
+            $this->report($exception);
         }
 
-        return null;
+        $message = $status >= 500 && ! $this->debug
+            ? $exception->getName()
+            : ($exception->getMessage() ?: $exception->getName());
+
+        return $status >= 500
+            ? (new AjaxResponse())->fatal($message, $status)
+            : (new AjaxResponse())->error($message, $status);
     }
 
-    protected function defaultStatusMessage(int $status): string
+    protected function report(\Throwable $exception): void
     {
-        return match ($status) {
-            400 => 'Bad Request',
-            401 => 'Unauthorized',
-            403 => 'Forbidden',
-            404 => 'Not Found',
-            405 => 'Method Not Allowed',
-            409 => 'Conflict',
-            419 => 'Page Expired',
-            422 => 'Unprocessable Entity',
-            429 => 'Too Many Requests',
-            500 => 'Internal Server Error',
-            503 => 'Service Unavailable',
-            default => 'An error occurred',
-        };
+        if ($this->logger instanceof LoggerInterface) {
+            $this->logger->error('Unhandled exception during an AJAX request.', [
+                'exception' => $exception,
+            ]);
+            return;
+        }
+
+        error_log('[Hyperf Ajax] ' . (string) $exception);
     }
 }

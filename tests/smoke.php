@@ -13,6 +13,11 @@ require __DIR__ . '/bootstrap.php';
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ContainerInterface;
+use Hyperf\Contract\StdoutLoggerInterface;
+use Hyperf\HttpMessage\Exception\NotFoundHttpException;
+use Hyperf\HttpMessage\Exception\ServerErrorHttpException;
+use Psr\Log\AbstractLogger;
+use Psr\Log\LoggerInterface;
 use Swoole\Coroutine;
 use Zotenme\HyperfAjax\AjaxRequest;
 use Zotenme\HyperfAjax\AjaxResponse;
@@ -122,6 +127,25 @@ class SmokeViewComponent implements ViewComponentInterface
     ) {}
 }
 
+class SmokeLogger extends AbstractLogger
+{
+    /** @var list<array{level: mixed, message: string, context: array<array-key, mixed>}> */
+    public array $records = [];
+
+    /**
+     * @param array<array-key, mixed> $context
+     * @param mixed $level
+     */
+    public function log($level, string|Stringable $message, array $context = []): void
+    {
+        $this->records[] = [
+            'level' => $level,
+            'message' => (string) $message,
+            'context' => $context,
+        ];
+    }
+}
+
 function assert_true(bool $condition, string $message): void
 {
     if (! $condition) {
@@ -151,7 +175,8 @@ assert_true($shortcut['count'] === 1, 'non-selector data remains data');
 assert_true($shortcut['__ajax']['ops'][0]['swap'] === 'append', 'append selector shortcut is supported');
 assert_true($shortcut['__ajax']['ops'][0]['selector'] === '#list', 'selector modifier is stripped');
 
-$validationException = new class('Invalid data') extends Exception {
+$logger = new SmokeLogger();
+$unexpectedException = new class('Sensitive database connection details', 404) extends Exception {
     /** @return array<string, list<string>> */
     public function errors(): array
     {
@@ -159,45 +184,34 @@ $validationException = new class('Invalid data') extends Exception {
     }
 };
 
-$error = (new ExceptionMapper())->map($validationException);
+$unexpectedError = (new ExceptionMapper($logger))->map($unexpectedException);
 
-assert_true($error->getStatusCode() === 422, 'validation maps to HTTP 422');
-assert_true($error->getInvalidFields()['email'][0] === 'Email is required', 'validation fields are exposed');
-assert_true($error->getMessage() === '', 'validation does not trigger a generic alert message');
+assert_true($unexpectedError->getStatusCode() === 500, 'duck-typed validation and arbitrary exception codes map to HTTP 500');
+assert_true($unexpectedError->getMessage() === 'Internal Server Error', 'unexpected exception details are hidden by default');
+assert_true($unexpectedError->getInvalidFields() === [], 'duck-typed errors are not treated as validation');
+assert_true(count($logger->records) === 1, 'unexpected exceptions are logged');
+assert_true($logger->records[0]['context']['exception'] === $unexpectedException, 'logger receives the original exception');
 
-$hyperfValidationException = new class('The given data was invalid.') extends Exception {
-    public object $validator;
+$notFoundError = (new ExceptionMapper($logger))->map(new NotFoundHttpException());
 
-    public function __construct(string $message)
-    {
-        parent::__construct($message);
+assert_true($notFoundError->getStatusCode() === 404, 'explicit Hyperf HTTP exceptions preserve their status');
+assert_true($notFoundError->getMessage() === 'Not Found', 'explicit client HTTP exceptions preserve a safe message');
+assert_true(count($logger->records) === 1, 'client HTTP exceptions are not logged as server failures');
 
-        $this->validator = new class {
-            public function errors(): object
-            {
-                return new class {
-                    /** @return array<string, list<string>> */
-                    public function toArray(): array
-                    {
-                        return ['email' => ['Email is required']];
-                    }
-                };
-            }
-        };
-    }
-};
+$serverError = (new ExceptionMapper($logger))->map(new ServerErrorHttpException('Sensitive upstream details'));
 
-$hyperfError = (new ExceptionMapper())->map($hyperfValidationException);
+assert_true($serverError->getStatusCode() === 500, 'server HTTP exceptions preserve their status');
+assert_true($serverError->getMessage() === 'Internal Server Error', 'server HTTP exception details are hidden by default');
+assert_true(count($logger->records) === 2, 'server HTTP exceptions are logged');
 
-assert_true($hyperfError->getStatusCode() === 422, 'hyperf validation maps to HTTP 422');
-assert_true($hyperfError->getInvalidFields()['email'][0] === 'Email is required', 'hyperf validator errors are exposed');
-assert_true($hyperfError->getMessage() === '', 'hyperf validation does not trigger a generic alert message');
+$debugError = (new ExceptionMapper($logger, true))->map(new Exception('Visible debug details'));
+assert_true($debugError->getMessage() === 'Visible debug details', 'debug mapper can expose exception details explicitly');
 
 $packageValidationException = new HyperfAjaxValidationException([
     'phone' => ['Phone is required'],
 ]);
 
-$packageError = (new ExceptionMapper())->map($packageValidationException);
+$packageError = (new ExceptionMapper($logger))->map($packageValidationException);
 
 assert_true($packageError->getStatusCode() === 422, 'package validation maps to HTTP 422');
 assert_true($packageError->getInvalidFields()['phone'][0] === 'Phone is required', 'package validation errors are exposed');
@@ -230,6 +244,8 @@ $controller = new class {
 $service = new SmokeInjectedService();
 $container = new SmokeContainer([
     SmokeInjectedService::class => $service,
+    LoggerInterface::class => $logger,
+    StdoutLoggerInterface::class => $logger,
 ]);
 ApplicationContext::setContainer($container);
 

@@ -14,9 +14,11 @@ namespace Zotenme\HyperfAjax\Concerns;
 
 use Hyperf\Context\Context;
 use Hyperf\Contract\ContainerInterface;
+use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\HttpServer\Contract\ResponseInterface as HyperfResponseInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use Psr\Log\LoggerInterface;
 use Zotenme\HyperfAjax\AjaxRequest;
 use Zotenme\HyperfAjax\AjaxResponse;
 use Zotenme\HyperfAjax\Component\ComponentContainer;
@@ -307,17 +309,27 @@ trait InteractsWithAjax
 
     protected function getAjaxExceptionMapper(): ExceptionMapperInterface
     {
-        if (property_exists($this, 'ajaxExceptionMapper') && $this->ajaxExceptionMapper instanceof ExceptionMapperInterface) {
-            return $this->ajaxExceptionMapper;
-        }
-
-        if (method_exists($this, 'makeAjaxExceptionMapper')) {
-            $mapper = $this->makeAjaxExceptionMapper();
+        $container = $this->getAjaxContainer();
+        if ($container->has(ExceptionMapperInterface::class)) {
+            $mapper = $container->get(ExceptionMapperInterface::class);
             if ($mapper instanceof ExceptionMapperInterface) {
                 return $mapper;
             }
         }
 
-        return new ExceptionMapper();
+        $logger = null;
+        foreach ([LoggerInterface::class, StdoutLoggerInterface::class] as $loggerClass) {
+            if (! $container->has($loggerClass)) {
+                continue;
+            }
+
+            $candidate = $container->get($loggerClass);
+            if ($candidate instanceof LoggerInterface) {
+                $logger = $candidate;
+                break;
+            }
+        }
+
+        return new ExceptionMapper($logger);
     }
 }
