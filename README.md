@@ -56,6 +56,10 @@ Or serve the published bundle:
 `framework-bundle.min.js` starts the framework automatically. Do not call
 `window.jax.start()` with this bundle.
 
+The published bundles are redistributed from Larajax 2.2.3. See
+[Third-Party Notices](THIRD_PARTY_NOTICES.md) for the upstream copyright and
+MIT license notice.
+
 ## Controller Usage
 
 The recommended low-friction entry point is `Hyperf AjaxController` with
