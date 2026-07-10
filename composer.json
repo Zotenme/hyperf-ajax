@@ -21,15 +21,15 @@
         "phpunit/phpunit": "^12.0"
     },
     "autoload": {
-        "files": [
-            "src/functions.php"
-        ],
         "psr-4": {
             "Zotenme\\HyperfAjax\\": "src/"
         }
     },
     "scripts": {
-        "test": "php tests/smoke.php"
+        "test": "php tests/smoke.php",
+        "analyse": "phpstan analyse --memory-limit=1024M",
+        "cs-check": "php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "php-cs-fixer fix --diff"
     },
     "extra": {
         "hyperf": {

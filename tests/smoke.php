@@ -1,8 +1,14 @@
 <?php
 
 declare(strict_types=1);
-
-require __DIR__ . '/../src/functions.php';
+/**
+ * This file is part of Hyperf Ajax.
+ *
+ * @link     https://github.com/Zotenme/hyperf-ajax
+ * @document https://github.com/Zotenme/hyperf-ajax/blob/main/README.md
+ * @contact  zotenme@gmail.com
+ * @license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
+ */
 require __DIR__ . '/../src/Contracts/AjaxExceptionInterface.php';
 require __DIR__ . '/../src/Contracts/ExceptionMapperInterface.php';
 require __DIR__ . '/../src/Support/AjaxHelpers.php';
@@ -15,10 +21,11 @@ if (! interface_exists('Psr\Container\ContainerInterface')) {
     eval('namespace Psr\Container; interface ContainerInterface { public function get(string $id); public function has(string $id): bool; }');
 }
 
-use Hyperfjax\Exception\ValidationException as HyperfjaxValidationException;
-use Hyperfjax\Support\ExceptionMapper;
-use Hyperfjax\Support\MethodInvoker;
 use Psr\Container\ContainerInterface;
+use Zotenme\HyperfAjax\AjaxResponse;
+use Zotenme\HyperfAjax\Exception\ValidationException as HyperfAjaxValidationException;
+use Zotenme\HyperfAjax\Support\ExceptionMapper;
+use Zotenme\HyperfAjax\Support\MethodInvoker;
 
 class SmokeInjectedService
 {
@@ -36,7 +43,7 @@ function assert_true(bool $condition, string $message): void
     }
 }
 
-$response = ajax()
+$response = (new AjaxResponse())
     ->data(['answer' => 42])
     ->update(['#message' => 'Saved'])
     ->browserEvent('profile:saved', ['ok' => true])
@@ -48,7 +55,7 @@ assert_true($response['__ajax']['ops'][0]['op'] === 'patchDom', 'patchDom op is 
 assert_true($response['__ajax']['ops'][0]['selector'] === '#message', 'selector is preserved');
 assert_true($response['__ajax']['ops'][1]['op'] === 'dispatch', 'browser event op is emitted');
 
-$shortcut = ajax()->dataWithUpdateSelectors([
+$shortcut = (new AjaxResponse())->dataWithUpdateSelectors([
     '@#list' => '<li>New</li>',
     'count' => 1,
 ])->toArray();
@@ -58,6 +65,7 @@ assert_true($shortcut['__ajax']['ops'][0]['swap'] === 'append', 'append selector
 assert_true($shortcut['__ajax']['ops'][0]['selector'] === '#list', 'selector modifier is stripped');
 
 $validationException = new class('Invalid data') extends Exception {
+    /** @return array<string, list<string>> */
     public function errors(): array
     {
         return ['email' => ['Email is required']];
@@ -81,6 +89,7 @@ $hyperfValidationException = new class('The given data was invalid.') extends Ex
             public function errors(): object
             {
                 return new class {
+                    /** @return array<string, list<string>> */
                     public function toArray(): array
                     {
                         return ['email' => ['Email is required']];
@@ -97,7 +106,7 @@ assert_true($hyperfError->getStatusCode() === 422, 'hyperf validation maps to HT
 assert_true($hyperfError->getInvalidFields()['email'][0] === 'Email is required', 'hyperf validator errors are exposed');
 assert_true($hyperfError->getMessage() === '', 'hyperf validation does not trigger a generic alert message');
 
-$packageValidationException = new HyperfjaxValidationException([
+$packageValidationException = new HyperfAjaxValidationException([
     'phone' => ['Phone is required'],
 ]);
 
@@ -111,6 +120,7 @@ $validatorLike = new class {
     public function errors(): object
     {
         return new class {
+            /** @return array<string, list<string>> */
             public function toArray(): array
             {
                 return ['name' => ['Name is required']];
@@ -119,7 +129,7 @@ $validatorLike = new class {
     }
 };
 
-$packageValidatorError = (new ExceptionMapper())->map(HyperfjaxValidationException::fromValidator($validatorLike));
+$packageValidatorError = (new ExceptionMapper())->map(HyperfAjaxValidationException::fromValidator($validatorLike));
 
 assert_true($packageValidatorError->getInvalidFields()['name'][0] === 'Name is required', 'package validation accepts validator-like objects');
 
@@ -137,9 +147,7 @@ assert_true($result === 'saved:42', 'method invoker resolves named parameters');
 $service = new SmokeInjectedService();
 
 $container = new class($service) implements ContainerInterface {
-    public function __construct(private object $service)
-    {
-    }
+    public function __construct(private object $service) {}
 
     public function get(string $id): object
     {

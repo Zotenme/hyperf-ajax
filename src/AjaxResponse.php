@@ -1,33 +1,60 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * This file is part of Hyperf Ajax.
+ *
+ * @link     https://github.com/Zotenme/hyperf-ajax
+ * @document https://github.com/Zotenme/hyperf-ajax/blob/main/README.md
+ * @contact  zotenme@gmail.com
+ * @license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
+ */
 
 namespace Zotenme\HyperfAjax;
 
 use Hyperf\HttpServer\Contract\ResponseInterface as HyperfResponseInterface;
-use Zotenme\HyperfAjax\Contracts\AjaxExceptionInterface;
+use Psr\Http\Message\ResponseInterface;
 use Zotenme\HyperfAjax\Contracts\ExceptionMapperInterface;
 use Zotenme\HyperfAjax\Support\AjaxHelpers;
 use Zotenme\HyperfAjax\Support\ExceptionMapper;
-use JsonSerializable;
-use Psr\Http\Message\ResponseInterface;
-use Stringable;
-use Throwable;
 
 class AjaxResponse
 {
     public const SEVERITY_INFO = 'info';
+
     public const SEVERITY_ERROR = 'error';
+
     public const SEVERITY_FATAL = 'fatal';
 
     public const OP_FLASH = 'flash';
+
     public const OP_PATCH_DOM = 'patchDom';
+
     public const OP_PARTIAL = 'partial';
+
     public const OP_REDIRECT = 'redirect';
+
     public const OP_RELOAD = 'reload';
+
     public const OP_DISPATCH = 'dispatch';
+
     public const OP_LOAD_ASSETS = 'loadAssets';
 
+    /**
+     * @var array{
+     *     headers: array<string, mixed>,
+     *     status: int,
+     *     content: array{
+     *         ok: bool,
+     *         severity: string,
+     *         message: null|string,
+     *         data: array<array-key, mixed>,
+     *         invalid: array<string, list<mixed>>,
+     *         ops: list<array<string, mixed>>,
+     *         redirect: null|string
+     *     }
+     * }
+     */
     protected array $ajaxData = [
         'headers' => [
             'X-AJAX-RESPONSE' => '1',
@@ -46,7 +73,7 @@ class AjaxResponse
 
     protected mixed $responseOverride = null;
 
-    public static function wrap(mixed $result): static
+    public static function wrap(mixed $result): self
     {
         if ($result instanceof self) {
             return $result;
@@ -58,7 +85,7 @@ class AjaxResponse
             return $response->force($result);
         }
 
-        if ($result instanceof JsonSerializable) {
+        if ($result instanceof \JsonSerializable) {
             $json = $result->jsonSerialize();
             return is_array($json) && AjaxHelpers::isAssoc($json)
                 ? $response->data($json)
@@ -71,7 +98,7 @@ class AjaxResponse
                 : $response->data(['result' => $result]);
         }
 
-        if ($result instanceof Stringable) {
+        if ($result instanceof \Stringable) {
             return $response->data(['result' => (string) $result]);
         }
 
@@ -82,6 +109,9 @@ class AjaxResponse
         return $response->force($result);
     }
 
+    /**
+     * @return array<array-key, mixed>
+     */
     public function toArray(): array
     {
         $env = $this->ajaxData['content'];
@@ -110,6 +140,9 @@ class AjaxResponse
         return $psrResponse;
     }
 
+    /**
+     * @param array<array-key, mixed> $updates
+     */
     public function update(array $updates): static
     {
         foreach ($updates as $target => $update) {
@@ -131,6 +164,9 @@ class AjaxResponse
         return $this;
     }
 
+    /**
+     * @param array<array-key, mixed> $data
+     */
     public function data(array $data): static
     {
         $this->ajaxData['content']['data'] = array_replace(
@@ -193,21 +229,36 @@ class AjaxResponse
         return $this;
     }
 
-    public function js(string|array $paths, array $attributes = []): static
+    /**
+     * @param array<array-key, mixed>|string $paths
+     * @param array<array-key, mixed> $attributes
+     */
+    public function js(array|string $paths, array $attributes = []): static
     {
         return $this->asset('js', $paths, $attributes);
     }
 
-    public function css(string|array $paths, array $attributes = []): static
+    /**
+     * @param array<array-key, mixed>|string $paths
+     * @param array<array-key, mixed> $attributes
+     */
+    public function css(array|string $paths, array $attributes = []): static
     {
         return $this->asset('css', $paths, $attributes);
     }
 
-    public function img(string|array $paths, array $attributes = []): static
+    /**
+     * @param array<array-key, mixed>|string $paths
+     * @param array<array-key, mixed> $attributes
+     */
+    public function img(array|string $paths, array $attributes = []): static
     {
         return $this->asset('img', $paths, $attributes);
     }
 
+    /**
+     * @param array<array-key, mixed> $attributes
+     */
     public function jsInline(string $code, array $attributes = []): static
     {
         $this->ajaxData['content']['ops'][] = [
@@ -221,7 +272,11 @@ class AjaxResponse
         return $this;
     }
 
-    public function asset(string $type, string|array $paths, array $attributes = []): static
+    /**
+     * @param array<array-key, mixed>|string $paths
+     * @param array<array-key, mixed> $attributes
+     */
+    public function asset(string $type, array|string $paths, array $attributes = []): static
     {
         if ($paths === '' || $paths === []) {
             return $this;
@@ -246,13 +301,16 @@ class AjaxResponse
         return $this->browserEventInternal($name, $data, true);
     }
 
+    /**
+     * @param array<string, mixed> $errors
+     */
     public function invalidFields(array $errors): static
     {
         $this->ajaxData['status'] = 422;
         $this->ajaxData['content']['ok'] = false;
         $this->ajaxData['content']['severity'] = self::SEVERITY_ERROR;
 
-        $invalid = (array) ($this->ajaxData['content']['invalid'] ?? []);
+        $invalid = $this->ajaxData['content']['invalid'];
         foreach ($errors as $field => $messages) {
             $invalid[$field] = array_values((array) $messages);
         }
@@ -262,11 +320,17 @@ class AjaxResponse
         return $this;
     }
 
-    public function invalidField(string $field, string|array $messages): static
+    /**
+     * @param array<array-key, mixed>|string $messages
+     */
+    public function invalidField(string $field, array|string $messages): static
     {
         return $this->invalidFields([$field => $messages]);
     }
 
+    /**
+     * @param array<string, mixed> $partials
+     */
     public function partials(array $partials): static
     {
         foreach ($partials as $name => $content) {
@@ -287,7 +351,7 @@ class AjaxResponse
         return $this;
     }
 
-    public function exception(Throwable $exception, ?ExceptionMapperInterface $mapper = null): static
+    public function exception(\Throwable $exception, ?ExceptionMapperInterface $mapper = null): self
     {
         return ($mapper ?? new ExceptionMapper())->map($exception);
     }
@@ -299,6 +363,9 @@ class AjaxResponse
         return $this;
     }
 
+    /**
+     * @param array<string, mixed> $headers
+     */
     public function headers(array $headers): static
     {
         $this->ajaxData['headers'] = [
@@ -309,6 +376,9 @@ class AjaxResponse
         return $this;
     }
 
+    /**
+     * @param array<array-key, mixed> $dataAndUpdates
+     */
     public function dataWithUpdateSelectors(array $dataAndUpdates): static
     {
         $data = $dataAndUpdates;
@@ -370,6 +440,9 @@ class AjaxResponse
         return $this->ajaxData['content']['redirect'];
     }
 
+    /**
+     * @return array<array-key, mixed>
+     */
     public function getData(): array
     {
         return $this->ajaxData['content']['data'] ?? [];
@@ -390,16 +463,25 @@ class AjaxResponse
         return $this->ajaxData['status'];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function getHeaders(): array
     {
         return $this->ajaxData['headers'] ?? [];
     }
 
+    /**
+     * @return list<array<string, mixed>>
+     */
     public function getOps(): array
     {
         return $this->ajaxData['content']['ops'] ?? [];
     }
 
+    /**
+     * @return array<string, list<mixed>>
+     */
     public function getInvalidFields(): array
     {
         return $this->ajaxData['content']['invalid'] ?? [];
@@ -422,7 +504,12 @@ class AjaxResponse
         return $this;
     }
 
-    protected function normalizeAssetPaths(string|array $paths, array $attributes = []): array
+    /**
+     * @param array<array-key, mixed>|string $paths
+     * @param array<array-key, mixed> $attributes
+     * @return list<mixed>
+     */
+    protected function normalizeAssetPaths(array|string $paths, array $attributes = []): array
     {
         $attributes = $this->normalizeAssetAttributes($attributes);
 
@@ -444,6 +531,10 @@ class AjaxResponse
         return $assets;
     }
 
+    /**
+     * @param array<array-key, mixed> $attributes
+     * @return array<array-key, mixed>
+     */
     protected function normalizeAssetAttributes(array $attributes): array
     {
         $normalized = [];
@@ -462,7 +553,7 @@ class AjaxResponse
 
     protected function normalizeRenderable(mixed $content): string
     {
-        if ($content instanceof Stringable) {
+        if ($content instanceof \Stringable) {
             return (string) $content;
         }
 

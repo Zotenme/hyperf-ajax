@@ -1,13 +1,20 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * This file is part of Hyperf Ajax.
+ *
+ * @link     https://github.com/Zotenme/hyperf-ajax
+ * @document https://github.com/Zotenme/hyperf-ajax/blob/main/README.md
+ * @contact  zotenme@gmail.com
+ * @license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
+ */
 
 namespace Zotenme\HyperfAjax\Exception;
 
-use RuntimeException;
-
-class ValidationException extends RuntimeException
+class ValidationException extends \RuntimeException
 {
+    /** @var array<string, mixed> */
     protected array $errors = [];
 
     public function __construct(mixed $errors, string $message = '')
@@ -22,11 +29,17 @@ class ValidationException extends RuntimeException
         return new self($validator, $message);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function errors(): array
     {
         return $this->errors;
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function normalizeErrors(mixed $errors): array
     {
         if (is_object($errors) && method_exists($errors, 'errors')) {

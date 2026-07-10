@@ -3,18 +3,19 @@
 declare(strict_types=1);
 
 $header = <<<'EOF'
-This file is part of Hyperf JWT Auth.
+This file is part of Hyperf Ajax.
 
-@link     https://github.com/Zotenme/hyperf-jwt-auth
-@document https://github.com/Zotenme/hyperf-jwt-auth/blob/main/README.md
+@link     https://github.com/Zotenme/hyperf-ajax
+@document https://github.com/Zotenme/hyperf-ajax/blob/main/README.md
 @contact  zotenme@gmail.com
-@license  https://github.com/Zotenme/hyperf-jwt-auth/blob/main/LICENSE
+@license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
 EOF;
 
 $finder = PhpCsFixer\Finder::create()
     ->exclude('vendor')
     ->in(__DIR__ . '/src')
     ->in(__DIR__ . '/tests')
+    ->in(__DIR__ . '/examples')
     ->name('*.php')
     ->ignoreDotFiles(true)
     ->ignoreVCS(true);

@@ -1,16 +1,24 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * This file is part of Hyperf Ajax.
+ *
+ * @link     https://github.com/Zotenme/hyperf-ajax
+ * @document https://github.com/Zotenme/hyperf-ajax/blob/main/README.md
+ * @contact  zotenme@gmail.com
+ * @license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
+ */
 
 namespace Zotenme\HyperfAjax\Component;
 
-use ArrayIterator;
 use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
 use Zotenme\HyperfAjax\Support\AjaxHelpers;
-use IteratorAggregate;
-use Traversable;
 
-class ComponentContainer implements IteratorAggregate
+/**
+ * @implements \IteratorAggregate<string, object>
+ */
+class ComponentContainer implements \IteratorAggregate
 {
     /**
      * @var list<class-string>
@@ -24,7 +32,11 @@ class ComponentContainer implements IteratorAggregate
 
     public function __construct(
         protected AjaxControllerInterface $controller
-    ) {
+    ) {}
+
+    public function __get(string $key): ?object
+    {
+        return $this->make($key);
     }
 
     public function register(): void
@@ -66,7 +78,7 @@ class ComponentContainer implements IteratorAggregate
     }
 
     /**
-     * @return array{0: object, 1: string}|null
+     * @return null|array{0: object, 1: string}
      */
     public function getAjaxHandlerMethod(string $handler): ?array
     {
@@ -79,13 +91,11 @@ class ComponentContainer implements IteratorAggregate
         return null;
     }
 
-    public function __get(string $key): ?object
+    /**
+     * @return \Traversable<string, object>
+     */
+    public function getIterator(): \Traversable
     {
-        return $this->make($key);
-    }
-
-    public function getIterator(): Traversable
-    {
-        return new ArrayIterator($this->components);
+        return new \ArrayIterator($this->components);
     }
 }

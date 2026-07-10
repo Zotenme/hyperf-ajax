@@ -14,7 +14,6 @@ interaction.
 This repository currently contains the first MVP implementation:
 
 - Hyperf package skeleton with `ConfigProvider`;
-- `ajax()` helper;
 - Larajax-compatible `__ajax` response envelope;
 - DOM patch, partial, redirect, reload, flash, browser event and asset operations;
 - explicit controller trait and base controller for `onXxx` handler dispatch;
@@ -30,11 +29,8 @@ For local development:
 composer require zotenme/hyperf-ajax
 ```
 
-Publish config/assets in a Hyperf application using Hyperf's vendor publish flow.
-The package exposes:
-
-- `publish/hyperfajax.php` -> `config/autoload/hyperfajax.php`;
-- `resources/dist` -> `public/vendor/hyperfajax`.
+Publish the frontend assets in a Hyperf application using Hyperf's vendor publish
+flow. The package exposes `resources/dist` as `public/vendor/hyperfajax`.
 
 ## Frontend
 

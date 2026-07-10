@@ -1,18 +1,25 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * This file is part of Hyperf Ajax.
+ *
+ * @link     https://github.com/Zotenme/hyperf-ajax
+ * @document https://github.com/Zotenme/hyperf-ajax/blob/main/README.md
+ * @contact  zotenme@gmail.com
+ * @license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
+ */
 
 namespace Zotenme\HyperfAjax\Support;
 
-use Exception;
+use Hyperf\Validation\ValidationException;
 use Zotenme\HyperfAjax\AjaxResponse;
 use Zotenme\HyperfAjax\Contracts\AjaxExceptionInterface;
 use Zotenme\HyperfAjax\Contracts\ExceptionMapperInterface;
-use Throwable;
 
 class ExceptionMapper implements ExceptionMapperInterface
 {
-    public function map(Throwable $exception): AjaxResponse
+    public function map(\Throwable $exception): AjaxResponse
     {
         if ($exception instanceof AjaxExceptionInterface) {
             return (new AjaxResponse())->error()->data($exception->toAjaxData());
@@ -32,24 +39,27 @@ class ExceptionMapper implements ExceptionMapperInterface
                 : (new AjaxResponse())->error($message, $status);
         }
 
-        if ($exception instanceof Exception) {
+        if ($exception instanceof \Exception) {
             return (new AjaxResponse())->error($exception->getMessage());
         }
 
         return (new AjaxResponse())->fatal($exception->getMessage() ?: 'An error occurred');
     }
 
-    protected function isValidationException(Throwable $exception): bool
+    protected function isValidationException(\Throwable $exception): bool
     {
         return (
             class_exists('Hyperf\Validation\ValidationException')
-            && $exception instanceof \Hyperf\Validation\ValidationException
+            && $exception instanceof ValidationException
         ) || method_exists($exception, 'errors')
             || method_exists($exception, 'getValidator')
             || property_exists($exception, 'validator');
     }
 
-    protected function extractValidationErrors(Throwable $exception): array
+    /**
+     * @return array<string, mixed>
+     */
+    protected function extractValidationErrors(\Throwable $exception): array
     {
         if (method_exists($exception, 'errors')) {
             return $this->normalizeValidationErrors($exception->errors());
@@ -72,6 +82,9 @@ class ExceptionMapper implements ExceptionMapperInterface
         return [];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     protected function normalizeValidationErrors(mixed $errors): array
     {
         if (is_array($errors)) {
@@ -91,7 +104,7 @@ class ExceptionMapper implements ExceptionMapperInterface
         return [];
     }
 
-    protected function extractStatusCode(Throwable $exception): ?int
+    protected function extractStatusCode(\Throwable $exception): ?int
     {
         if (method_exists($exception, 'getStatusCode')) {
             $status = (int) $exception->getStatusCode();
@@ -99,7 +112,7 @@ class ExceptionMapper implements ExceptionMapperInterface
         }
 
         if (method_exists($exception, 'getCode')) {
-            $code = $exception->getCode();
+            $code = (int) $exception->getCode();
             return $code >= 400 && $code <= 599 ? $code : null;
         }
 

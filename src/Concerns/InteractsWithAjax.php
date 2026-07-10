@@ -1,10 +1,20 @@
 <?php
 
 declare(strict_types=1);
+/**
+ * This file is part of Hyperf Ajax.
+ *
+ * @link     https://github.com/Zotenme/hyperf-ajax
+ * @document https://github.com/Zotenme/hyperf-ajax/blob/main/README.md
+ * @contact  zotenme@gmail.com
+ * @license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
+ */
 
 namespace Zotenme\HyperfAjax\Concerns;
 
 use Hyperf\HttpServer\Contract\ResponseInterface as HyperfResponseInterface;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 use Zotenme\HyperfAjax\AjaxRequest;
 use Zotenme\HyperfAjax\AjaxResponse;
 use Zotenme\HyperfAjax\Component\ComponentContainer;
@@ -17,10 +27,6 @@ use Zotenme\HyperfAjax\Exception\HandlerNotFound;
 use Zotenme\HyperfAjax\Support\AjaxHelpers;
 use Zotenme\HyperfAjax\Support\ExceptionMapper;
 use Zotenme\HyperfAjax\Support\MethodInvoker;
-use Psr\Http\Message\ResponseInterface;
-use Psr\Http\Message\ServerRequestInterface;
-use RuntimeException;
-use Throwable;
 
 trait InteractsWithAjax
 {
@@ -28,6 +34,20 @@ trait InteractsWithAjax
 
     protected ?ComponentContainer $componentContainer = null;
 
+    public function __get(string $name): mixed
+    {
+        if ($name === 'ajax') {
+            return $this->ajax();
+        }
+
+        trigger_error('Undefined property: ' . static::class . '::$' . $name, E_USER_NOTICE);
+
+        return null;
+    }
+
+    /**
+     * @param array<array-key, mixed> $parameters
+     */
     public function handleAjax(
         ServerRequestInterface $request,
         HyperfResponseInterface $response,
@@ -44,7 +64,7 @@ trait InteractsWithAjax
             $this->initAjaxComponents();
 
             return $this->runAjaxAction($action, $parameters)->toPsrResponse($response);
-        } catch (Throwable $exception) {
+        } catch (\Throwable $exception) {
             return $this->ajax()->exception($exception, $this->getAjaxExceptionMapper())->toPsrResponse($response);
         }
     }
@@ -54,17 +74,9 @@ trait InteractsWithAjax
         return new AjaxResponse();
     }
 
-    public function __get(string $name): mixed
-    {
-        if ($name === 'ajax') {
-            return $this->ajax();
-        }
-
-        trigger_error('Undefined property: ' . static::class . '::$' . $name, E_USER_NOTICE);
-
-        return null;
-    }
-
+    /**
+     * @param array<array-key, mixed> $parameters
+     */
     public function ajaxPage(
         ServerRequestInterface $request,
         HyperfResponseInterface $response,
@@ -84,6 +96,9 @@ trait InteractsWithAjax
         return $this->ajaxRequest;
     }
 
+    /**
+     * @return array<array-key, mixed>
+     */
     public function ajaxAll(): array
     {
         $request = $this->ajaxRequest?->request;
@@ -95,7 +110,7 @@ trait InteractsWithAjax
         $query = $request->getQueryParams();
 
         return [
-            ...(is_array($query) ? $query : []),
+            ...$query,
             ...(is_array($body) ? $body : []),
         ];
     }
@@ -131,15 +146,15 @@ trait InteractsWithAjax
     public function addComponentInstance(string $alias, ViewComponentInterface $instance): void
     {
         if (! $this instanceof AjaxControllerInterface) {
-            throw new RuntimeException('Controllers using AJAX components must implement AjaxControllerInterface.');
+            throw new \RuntimeException('Controllers using AJAX components must implement AjaxControllerInterface.');
         }
 
-        if (! $instance->controller) {
-            $instance->controller = $this;
+        if (! $instance->getController()) {
+            $instance->setController($this);
         }
 
-        if (! $instance->alias) {
-            $instance->alias = $alias;
+        if ($instance->getAlias() === '') {
+            $instance->setAlias($alias);
         }
 
         $this->componentContainer ??= new ComponentContainer($this);
@@ -153,6 +168,9 @@ trait InteractsWithAjax
         return $component instanceof ViewComponentInterface ? $component : null;
     }
 
+    /**
+     * @param array<array-key, mixed> $parameters
+     */
     protected function runAjaxAction(string $action, array $parameters): AjaxResponse
     {
         $handler = $this->ajaxRequest?->handler ?? '';
@@ -167,6 +185,10 @@ trait InteractsWithAjax
         $method = $this->getAjaxHandlerMethod($action);
         if ($method === null) {
             throw new HandlerNotFound("AJAX handler [{$handler}] not found");
+        }
+
+        if (! is_callable($method)) {
+            throw new HandlerNotFound("AJAX handler [{$handler}] is not callable");
         }
 
         if (method_exists($this, 'makeCallForAjax')) {
@@ -187,7 +209,7 @@ trait InteractsWithAjax
     }
 
     /**
-     * @return array{0: object, 1: string}|null
+     * @return null|array{0: object, 1: string}
      */
     protected function getAjaxHandlerMethod(string $action): ?array
     {
