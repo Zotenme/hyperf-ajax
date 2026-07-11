@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Zotenme\HyperfAjax\Tests\Support;
 
 use Zotenme\HyperfAjax\AjaxRequest;
+use Zotenme\HyperfAjax\AjaxResponse;
 use Zotenme\HyperfAjax\Controller\HyperfAjaxController;
 use Zotenme\HyperfAjax\Support\AjaxExecutionContext;
 
@@ -26,5 +27,21 @@ class TestAjaxController extends HyperfAjaxController
     public function release(): void
     {
         $this->clearAjaxExecutionContext();
+    }
+
+    /**
+     * @param array<array-key, mixed> $parameters
+     */
+    public function dispatchAjaxRequest(AjaxRequest $request, string $action = '', array $parameters = []): AjaxResponse
+    {
+        $this->activate($request);
+
+        try {
+            $this->initAjaxComponents();
+
+            return $this->runAjaxAction($action, $parameters);
+        } finally {
+            $this->release();
+        }
     }
 }

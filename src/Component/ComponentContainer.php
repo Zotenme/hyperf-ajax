@@ -64,6 +64,10 @@ class ComponentContainer implements \IteratorAggregate
 
     public function bind(string $alias, object $instance): void
     {
+        if (array_key_exists($alias, $this->components)) {
+            throw new \LogicException("AJAX component alias [{$alias}] is already registered.");
+        }
+
         $this->components[$alias] = $instance;
 
         if (property_exists($instance, 'components') && is_array($instance->components)) {

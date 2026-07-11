@@ -13,6 +13,7 @@ declare(strict_types=1);
 namespace Zotenme\HyperfAjax;
 
 use Psr\Http\Message\ServerRequestInterface;
+use Zotenme\HyperfAjax\Support\AjaxHandlerName;
 
 class AjaxRequest
 {
@@ -46,9 +47,7 @@ class AjaxRequest
         $this->request = $request;
 
         [$this->component, $this->handler] = $this->getAjaxHandlerName($request);
-        $this->qualifiedHandler = $this->component !== ''
-            ? $this->component . '::' . $this->handler
-            : $this->handler;
+        $this->qualifiedHandler = trim($request->getHeaderLine(self::HEADER_HANDLER));
         $this->partial = $this->getAjaxPartialName($request);
         $this->partialList = $this->getAjaxHandlerPartialList($request);
         $this->wantsFlash = $request->getHeaderLine(self::HEADER_FLASH) !== '';
@@ -57,6 +56,11 @@ class AjaxRequest
     }
 
     public function hasAjaxHandler(): bool
+    {
+        return $this->isAjaxRequest() && AjaxHandlerName::isValid($this->qualifiedHandler);
+    }
+
+    public function isAjaxRequest(): bool
     {
         if (! $this->request instanceof ServerRequestInterface) {
             return false;
@@ -70,7 +74,7 @@ class AjaxRequest
             return false;
         }
 
-        return (bool) preg_match('/^(?:\w+::)?on[A-Z]{1}[\w+]*$/', $this->qualifiedHandler);
+        return true;
     }
 
     /**

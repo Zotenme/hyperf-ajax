@@ -229,6 +229,11 @@ Available helpers:
 - `ajaxPost('field', 'default')` returns one parsed body value.
 - `ajaxInput('field', 'default')` returns one merged query/body value.
 
+AJAX handler names follow one backend protocol grammar. Controller handlers use
+`onEvent`; component handlers use `ComponentAlias::onEvent`. `Event` must start
+with an uppercase ASCII letter, and names may otherwise contain ASCII letters,
+digits and underscores. Invalid handler names return an AJAX HTTP 400 response.
+
 ## Validation
 
 For inline, October-style validation, throw Hyperf Ajax's own validation
@@ -296,6 +301,9 @@ class ProfileController extends HyperfAjaxController
     ];
 }
 ```
+
+Component aliases must be unique within one AJAX request. Duplicate aliases are
+rejected during registration instead of silently replacing an earlier component.
 
 When applying `InteractsWithAjax` directly, the class must implement
 `AjaxControllerInterface` and provide the container accessor required by the
@@ -437,5 +445,5 @@ Run the PHPUnit suite:
 composer test
 ```
 
-The suite checks framework-neutral behavior. Full Hyperf integration tests should
-be added once the target Hyperf application skeleton is chosen.
+The suite checks framework-neutral behavior. Full Hyperf integration tests remain
+in the local, ignored `hyperf-app` smoke environment.

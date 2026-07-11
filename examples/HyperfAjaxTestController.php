@@ -26,7 +26,7 @@ class HyperfAjaxTestController extends HyperfAjaxController
                 <html>
                 <head>
                     <meta charset="utf-8">
-                    <script src="/vendor/hyperf-ajax/framework-bundle.min.js"></script>
+                    <script src="/vendor/hyperfajax/framework-bundle.min.js"></script>
                     <style>
                         [data-validate-for],
                         [data-validate-error] { display: none; color: #b00020; margin-top: 4px; }

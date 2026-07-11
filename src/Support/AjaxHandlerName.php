@@ -10,8 +10,14 @@ declare(strict_types=1);
  * @license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
  */
 
-namespace Zotenme\HyperfAjax\Exception;
+namespace Zotenme\HyperfAjax\Support;
 
-use Hyperf\HttpMessage\Exception\BadRequestHttpException;
+final class AjaxHandlerName
+{
+    public const GRAMMAR = '/^(?:[a-zA-Z0-9_]+::)?on[A-Z][a-zA-Z0-9_]*$/D';
 
-class HandlerNameInvalid extends BadRequestHttpException {}
+    public static function isValid(string $qualifiedHandler): bool
+    {
+        return preg_match(self::GRAMMAR, $qualifiedHandler) === 1;
+    }
+}

@@ -31,6 +31,7 @@ use Zotenme\HyperfAjax\Exception\ComponentNotFound;
 use Zotenme\HyperfAjax\Exception\HandlerNameInvalid;
 use Zotenme\HyperfAjax\Exception\HandlerNotFound;
 use Zotenme\HyperfAjax\Support\AjaxExecutionContext;
+use Zotenme\HyperfAjax\Support\AjaxHandlerName;
 use Zotenme\HyperfAjax\Support\AjaxHelpers;
 use Zotenme\HyperfAjax\Support\ExceptionMapper;
 use Zotenme\HyperfAjax\Support\MethodInvoker;
@@ -59,7 +60,7 @@ trait InteractsWithAjax
     ): ?ResponseInterface {
         $ajaxRequest = (new AjaxRequest())->fromRequest($request);
 
-        if (! $ajaxRequest->hasAjaxHandler()) {
+        if (! $ajaxRequest->isAjaxRequest()) {
             return null;
         }
 
@@ -209,12 +210,14 @@ trait InteractsWithAjax
     {
         $ajaxRequest = $this->getAjaxRequest();
         $handler = $ajaxRequest?->handler ?? '';
-        if ($handler === '') {
-            throw new HandlerNotFound('AJAX handler not specified');
+        $qualifiedHandler = $ajaxRequest?->qualifiedHandler ?? '';
+        if ($ajaxRequest instanceof AjaxRequest && $qualifiedHandler === '' && $handler !== '') {
+            $qualifiedHandler = $ajaxRequest->component !== ''
+                ? $ajaxRequest->component . '::' . $handler
+                : $handler;
         }
-
-        if (! preg_match('/^on[A-Z][a-zA-Z0-9_]*$/', $handler)) {
-            throw new HandlerNameInvalid("[{$handler}] is an invalid AJAX handler name");
+        if (! AjaxHandlerName::isValid($qualifiedHandler)) {
+            throw new HandlerNameInvalid("[{$qualifiedHandler}] is an invalid AJAX handler name");
         }
 
         $method = $this->getAjaxHandlerMethod($action);
