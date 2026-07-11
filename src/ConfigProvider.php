@@ -12,6 +12,9 @@ declare(strict_types=1);
 
 namespace Zotenme\HyperfAjax;
 
+use Zotenme\HyperfAjax\Contracts\AjaxHandlerInvokerInterface;
+use Zotenme\HyperfAjax\Support\MethodInvoker;
+
 class ConfigProvider
 {
     /**
@@ -22,7 +25,9 @@ class ConfigProvider
         $basePath = (string) constant('BASE_PATH');
 
         return [
-            'dependencies' => [],
+            'dependencies' => [
+                AjaxHandlerInvokerInterface::class => MethodInvoker::class,
+            ],
             'publish' => [
                 [
                     'id' => 'assets',

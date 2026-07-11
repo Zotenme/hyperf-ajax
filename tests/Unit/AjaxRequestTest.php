@@ -65,11 +65,34 @@ class AjaxRequestTest extends TestCase
         yield 'embedded newline' => ["onSave\nInjected"];
     }
 
-    private function ajaxRequest(string $handler): AjaxRequest
+    public function testKeepsCurrentPartialContextSeparateFromResolvedRenderList(): void
+    {
+        $request = $this->ajaxRequest('onRefresh', [
+            AjaxRequest::HEADER_PARTIAL => 'profile/card',
+            AjaxRequest::HEADER_PARTIALS => 'profile/card&sidebar',
+        ]);
+
+        self::assertSame('profile/card', $request->partial);
+        self::assertSame(['profile/card', 'sidebar'], $request->partialList);
+    }
+
+    public function testCurrentPartialAloneDoesNotRequestBackendRendering(): void
+    {
+        $request = $this->ajaxRequest('onRefresh', [
+            AjaxRequest::HEADER_PARTIAL => 'profile/card',
+        ]);
+
+        self::assertSame('profile/card', $request->partial);
+        self::assertSame([], $request->partialList);
+    }
+
+    /** @param array<string, string> $headers */
+    private function ajaxRequest(string $handler, array $headers = []): AjaxRequest
     {
         $request = new Request('POST', '/', [
             'X-Requested-With' => 'XMLHttpRequest',
             AjaxRequest::HEADER_HANDLER => $handler,
+            ...$headers,
         ]);
 
         return (new AjaxRequest())->fromRequest($request);

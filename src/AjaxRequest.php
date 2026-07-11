@@ -19,8 +19,6 @@ class AjaxRequest
 {
     public const HEADER_HANDLER = 'X-AJAX-HANDLER';
 
-    public const HEADER_FLASH = 'X-AJAX-FLASH';
-
     public const HEADER_PARTIAL = 'X-AJAX-PARTIAL';
 
     public const HEADER_PARTIALS = 'X-AJAX-PARTIALS';
@@ -30,8 +28,6 @@ class AjaxRequest
     public string $qualifiedHandler = '';
 
     public string $component = '';
-
-    public bool $wantsFlash = false;
 
     public ?string $partial = null;
 
@@ -50,8 +46,6 @@ class AjaxRequest
         $this->qualifiedHandler = trim($request->getHeaderLine(self::HEADER_HANDLER));
         $this->partial = $this->getAjaxPartialName($request);
         $this->partialList = $this->getAjaxHandlerPartialList($request);
-        $this->wantsFlash = $request->getHeaderLine(self::HEADER_FLASH) !== '';
-
         return $this;
     }
 

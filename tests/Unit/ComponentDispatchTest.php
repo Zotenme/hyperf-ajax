@@ -16,6 +16,7 @@ use Hyperf\Context\ApplicationContext;
 use PHPUnit\Framework\TestCase;
 use Zotenme\HyperfAjax\AjaxRequest;
 use Zotenme\HyperfAjax\AjaxResponse;
+use Zotenme\HyperfAjax\Component\ComponentContainer;
 use Zotenme\HyperfAjax\Concerns\ViewComponent;
 use Zotenme\HyperfAjax\Contracts\ViewComponentInterface;
 use Zotenme\HyperfAjax\Exception\ComponentNotFound;
@@ -34,6 +35,11 @@ class ComponentDispatchTest extends TestCase
         ParentComponent::$bootCount = 0;
         NestedComponent::$bootCount = 0;
         ApplicationContext::setContainer(new TestContainer());
+    }
+
+    public function testDoesNotExposeMutableGlobalComponentState(): void
+    {
+        self::assertFalse(property_exists(ComponentContainer::class, 'globalComponents'));
     }
 
     public function testDispatchesQualifiedComponentHandlerAndBootsRegisteredComponents(): void

@@ -50,6 +50,19 @@ class AjaxResponseTest extends TestCase
         self::assertSame('#list', $response['__ajax']['ops'][0]['selector']);
     }
 
+    public function testAddsExplicitFlashOperation(): void
+    {
+        $operation = (new AjaxResponse())
+            ->flash('success', 'Profile saved')
+            ->toArray()['__ajax']['ops'][0];
+
+        self::assertSame([
+            'op' => AjaxResponse::OP_FLASH,
+            'level' => 'success',
+            'text' => 'Profile saved',
+        ], $operation);
+    }
+
     public function testReturnsForcedPsrResponseWithoutConversion(): void
     {
         $forced = (new Response())

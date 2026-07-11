@@ -24,6 +24,7 @@ use Zotenme\HyperfAjax\AjaxResponse;
 use Zotenme\HyperfAjax\Component\ComponentContainer;
 use Zotenme\HyperfAjax\Component\ViewComponentFactory;
 use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
+use Zotenme\HyperfAjax\Contracts\AjaxHandlerInvokerInterface;
 use Zotenme\HyperfAjax\Contracts\ExceptionMapperInterface;
 use Zotenme\HyperfAjax\Contracts\PartialRendererInterface;
 use Zotenme\HyperfAjax\Contracts\ViewComponentInterface;
@@ -229,17 +230,26 @@ trait InteractsWithAjax
             throw new HandlerNotFound("AJAX handler [{$handler}] is not callable");
         }
 
-        if (method_exists($this, 'makeCallForAjax')) {
-            $result = $this->makeCallForAjax($method, $parameters);
-        } else {
-            $result = (new MethodInvoker($this->getAjaxContainer()))->invoke($method, $parameters);
-        }
+        $result = $this->getAjaxHandlerInvoker()->invoke($method, $parameters);
 
         $response = AjaxResponse::wrap($result);
 
         $this->renderRequestedAjaxPartials($response);
 
         return $response;
+    }
+
+    protected function getAjaxHandlerInvoker(): AjaxHandlerInvokerInterface
+    {
+        $container = $this->getAjaxContainer();
+        if ($container->has(AjaxHandlerInvokerInterface::class)) {
+            $invoker = $container->get(AjaxHandlerInvokerInterface::class);
+            if ($invoker instanceof AjaxHandlerInvokerInterface) {
+                return $invoker;
+            }
+        }
+
+        return new MethodInvoker($container);
     }
 
     protected function renderRequestedAjaxPartials(AjaxResponse $response): void

@@ -14,6 +14,8 @@ namespace Zotenme\HyperfAjax\Tests\Unit;
 
 use PHPUnit\Framework\TestCase;
 use Zotenme\HyperfAjax\ConfigProvider;
+use Zotenme\HyperfAjax\Contracts\AjaxHandlerInvokerInterface;
+use Zotenme\HyperfAjax\Support\MethodInvoker;
 
 /**
  * @internal
@@ -40,6 +42,16 @@ class ConfigProviderTest extends TestCase
             $publication['destination']
         );
         self::assertFileExists($publication['source'] . '/framework-bundle.min.js');
+    }
+
+    public function testRegistersDefaultHandlerInvoker(): void
+    {
+        $config = (new ConfigProvider())();
+
+        self::assertSame(
+            MethodInvoker::class,
+            $config['dependencies'][AjaxHandlerInvokerInterface::class]
+        );
     }
 
     public function testReadmeAndCopyableExampleUsePublishedBundleUrl(): void

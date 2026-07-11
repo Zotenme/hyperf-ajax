@@ -21,11 +21,6 @@ use Zotenme\HyperfAjax\Support\AjaxHelpers;
 class ComponentContainer implements \IteratorAggregate
 {
     /**
-     * @var list<class-string>
-     */
-    public static array $globalComponents = [];
-
-    /**
      * @var array<string, object>
      */
     protected array $components = [];
@@ -46,10 +41,6 @@ class ComponentContainer implements \IteratorAggregate
             foreach ($this->controller->components as $componentClass) {
                 $this->componentFactory->make($componentClass, $this->controller)->bindToController();
             }
-        }
-
-        foreach (static::$globalComponents as $componentClass) {
-            $this->componentFactory->make($componentClass, $this->controller)->bindToController();
         }
     }
 

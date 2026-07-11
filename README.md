@@ -66,6 +66,13 @@ The recommended low-friction entry point is `HyperfAjaxController` with
 `ajaxPage()`. The method renders a normal page for regular requests and dispatches
 `onXxx` handlers for AJAX requests.
 
+`ajaxPage()` is the intentional public integration boundary. Call it explicitly
+from each page action that supports AJAX. The package does not install automatic
+middleware, attributes or AOP interception: Hyperf controllers may be
+long-lived, and keeping the concrete controller instance and request lifecycle
+explicit avoids hidden coroutine state. The render callback is lazy and is never
+called for an AJAX request.
+
 ```php
 <?php
 
@@ -234,6 +241,51 @@ AJAX handler names follow one backend protocol grammar. Controller handlers use
 with an uppercase ASCII letter, and names may otherwise contain ASCII letters,
 digits and underscores. Invalid handler names return an AJAX HTTP 400 response.
 
+### Handler signatures
+
+Values passed in the `ajaxPage(..., parameters: [...])` array may be positional
+or keyed by parameter name. Named values take priority over positional values
+and container injection. A single class or interface type can be resolved from
+the container; default values, nullable parameters and variadic parameters are
+supported. Pass a named variadic value as an array.
+
+Union, intersection and enum parameters are supported when an explicit value of
+the correct PHP type is supplied. They are not guessed from the container or
+coerced from strings. A missing required parameter produces a diagnostic
+`InvalidArgumentException` instead of receiving an implicit `null`.
+
+Request body and query values are deliberately not bound to method parameters.
+Read them through `ajaxPost()`, `ajaxInput()` or `ajaxAll()` so route/action
+parameters cannot silently conflict with submitted input.
+
+To customize handler invocation, bind the typed invoker contract in
+`config/autoload/dependencies.php`:
+
+```php
+use App\Ajax\CustomHandlerInvoker;
+use Zotenme\HyperfAjax\Contracts\AjaxHandlerInvokerInterface;
+
+return [
+    AjaxHandlerInvokerInterface::class => CustomHandlerInvoker::class,
+];
+```
+
+The implementation receives the resolved controller/component callable and the
+explicit action parameters:
+
+```php
+final class CustomHandlerInvoker implements AjaxHandlerInvokerInterface
+{
+    public function invoke(callable $handler, array $parameters = []): mixed
+    {
+        return $handler(...$parameters);
+    }
+}
+```
+
+This contract replaces the former undocumented `makeCallForAjax()` method-name
+convention.
+
 ## Validation
 
 For inline, October-style validation, throw Hyperf Ajax's own validation
@@ -349,7 +401,53 @@ HTML:
 <button data-request="ProfileForm::onSave">Save</button>
 ```
 
+## Flash messages
+
+Flash messages are explicit response operations and do not depend on a Hyperf
+session integration:
+
+```php
+public function onSave(): AjaxResponse
+{
+    return $this->ajax()->flash('success', 'Profile saved');
+}
+```
+
+Enable flash handling for the frontend request with `data-request-flash` (or the
+equivalent JavaScript `flash: true` option):
+
+```html
+<button data-request="onSave" data-request-flash>Save</button>
+```
+
+For Larajax 2.2.3 compatibility the frontend sends `X-AJAX-FLASH`, but the
+backend does not interpret that header or capture messages from session storage.
+It only returns flash operations explicitly added through `AjaxResponse::flash()`.
+Applications that need session-backed flash capture can implement it in their
+own handler or response adapter without making a session package mandatory.
+
 ## Partials
+
+The frontend distinguishes the current partial from the partials requested for
+rendering. A request originating inside `data-ajax-partial` sends its name in
+`X-AJAX-PARTIAL`. The backend exposes that context as
+`$this->getAjaxRequest()?->partial`, including to `PartialRendererInterface`.
+It does not render the current partial automatically.
+
+Use `_self` when the originating partial should be refreshed:
+
+```html
+<div data-ajax-partial="profile/card">
+    <button
+        data-request="onRefresh"
+        data-request-update='{"_self": true}'
+    >Refresh this card</button>
+</div>
+```
+
+As in Larajax 2.2.3, the frontend resolves `_self` to `profile/card` and includes
+that resolved name in `X-AJAX-PARTIALS`. The backend renders only this resolved
+list, keeping `X-AJAX-PARTIAL` as request context.
 
 You can always return ready HTML without a renderer:
 
