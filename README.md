@@ -535,6 +535,10 @@ final class HyperfViewPartialRenderer implements PartialRendererInterface
 Complete examples for direct strings, plain PHP templates and `hyperf/view`
 are available in [`examples/PartialRendering`](examples/PartialRendering).
 
+A larger Blade example with a product catalog, category/minimum-price filters
+and “Show more” AJAX pagination is available in
+[`examples/ProductCatalog`](examples/ProductCatalog).
+
 ## Tests
 
 Run the PHPUnit suite:
