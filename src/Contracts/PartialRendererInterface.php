@@ -10,19 +10,19 @@ declare(strict_types=1);
  * @license  https://github.com/Zotenme/hyperf-ajax/blob/main/LICENSE.md
  */
 
-namespace Zotenme\HyperfAjax\Support;
+namespace Zotenme\HyperfAjax\Contracts;
 
 use Zotenme\HyperfAjax\AjaxRequest;
-use Zotenme\HyperfAjax\Component\ComponentContainer;
 
-final class AjaxExecutionContext
+interface PartialRendererInterface
 {
     /**
-     * @param array<string, mixed> $partialData
+     * @param array<string, mixed> $data
      */
-    public function __construct(
-        public readonly AjaxRequest $request,
-        public ?ComponentContainer $components = null,
-        public array $partialData = []
-    ) {}
+    public function render(
+        string $partial,
+        object $controller,
+        AjaxRequest $request,
+        array $data = []
+    ): string;
 }

@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 namespace Zotenme\HyperfAjax\Tests\Unit;
 
+use Hyperf\HttpMessage\Server\Response;
+use Hyperf\HttpServer\Contract\ResponseInterface;
 use PHPUnit\Framework\TestCase;
 use Zotenme\HyperfAjax\AjaxResponse;
 
@@ -46,5 +48,41 @@ class AjaxResponseTest extends TestCase
         self::assertSame(1, $response['count']);
         self::assertSame('append', $response['__ajax']['ops'][0]['swap']);
         self::assertSame('#list', $response['__ajax']['ops'][0]['selector']);
+    }
+
+    public function testReturnsForcedPsrResponseWithoutConversion(): void
+    {
+        $forced = (new Response())
+            ->withStatus(202)
+            ->withHeader('X-Forced', 'yes');
+
+        $actual = AjaxResponse::wrap($forced)->toPsrResponse($this->createStub(
+            ResponseInterface::class
+        ));
+
+        self::assertSame($forced, $actual);
+        self::assertSame(202, $actual->getStatusCode());
+        self::assertSame('yes', $actual->getHeaderLine('X-Forced'));
+    }
+
+    public function testRejectsUnsupportedHandlerResult(): void
+    {
+        $this->expectException(\UnexpectedValueException::class);
+        $this->expectExceptionMessage('AJAX handler returned unsupported result of type [stdClass].');
+
+        AjaxResponse::wrap(new \stdClass());
+    }
+
+    public function testWrapsSupportedScalarAndArrayResults(): void
+    {
+        self::assertSame('saved', AjaxResponse::wrap('saved')->toArray()['result']);
+        self::assertSame(42, AjaxResponse::wrap(42)->toArray()['result']);
+        self::assertTrue(AjaxResponse::wrap(true)->toArray()['result']);
+        self::assertNull(AjaxResponse::wrap(null)->toArray()['result']);
+        self::assertSame([1, 2], AjaxResponse::wrap([1, 2])->toArray()['result']);
+
+        $associative = AjaxResponse::wrap(['saved' => true])->toArray();
+        self::assertTrue($associative['saved']);
+        self::assertArrayNotHasKey('result', $associative);
     }
 }

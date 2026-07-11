@@ -71,7 +71,7 @@ class AjaxResponse
         ],
     ];
 
-    protected mixed $responseOverride = null;
+    protected ?ResponseInterface $responseOverride = null;
 
     public static function wrap(mixed $result): self
     {
@@ -106,7 +106,10 @@ class AjaxResponse
             return $response->data(['result' => $result]);
         }
 
-        return $response->force($result);
+        throw new \UnexpectedValueException(sprintf(
+            'AJAX handler returned unsupported result of type [%s].',
+            get_debug_type($result)
+        ));
     }
 
     /**
@@ -356,7 +359,7 @@ class AjaxResponse
         return ($mapper ?? new ExceptionMapper())->map($exception);
     }
 
-    public function force(mixed $response): static
+    public function force(ResponseInterface $response): static
     {
         $this->responseOverride = $response;
 

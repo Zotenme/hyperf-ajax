@@ -2,7 +2,7 @@
 
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D8.3-blue.svg)](https://php.net/)
 [![Hyperf Version](https://img.shields.io/badge/hyperf-%5E3.2-green.svg)](https://hyperf.io/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
 [![PHPStan](https://img.shields.io/badge/phpstan-level%208-brightgreen.svg)]()
 
@@ -62,7 +62,7 @@ MIT license notice.
 
 ## Controller Usage
 
-The recommended low-friction entry point is `Hyperf AjaxController` with
+The recommended low-friction entry point is `HyperfAjaxController` with
 `ajaxPage()`. The method renders a normal page for regular requests and dispatches
 `onXxx` handlers for AJAX requests.
 
@@ -102,6 +102,8 @@ class ProfileController extends HyperfAjaxController
 Route:
 
 ```php
+use Hyperf\HttpServer\Router\Router;
+
 Router::addRoute(['GET', 'POST'], '/profile', [ProfileController::class, 'index']);
 ```
 
@@ -122,7 +124,7 @@ This example returns a tiny HTML page and a working `onPing` handler. It is the
 quickest way to verify a local path install inside a real Hyperf application.
 
 See the copyable source in
-`examples/Hyperf AjaxTestController.php`.
+`examples/HyperfAjaxTestController.php`.
 
 ```php
 <?php
@@ -135,7 +137,7 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Contract\ResponseInterface;
 use Zotenme\HyperfAjax\Controller\HyperfAjaxController;
 
-class Hyperf AjaxTestController extends Hyperf AjaxController
+class HyperfAjaxTestController extends HyperfAjaxController
 {
     public function index(RequestInterface $request, ResponseInterface $response)
     {
@@ -193,9 +195,10 @@ HTML;
 Route:
 
 ```php
-use App\Controller\Hyperf AjaxTestController;
+use App\Controller\HyperfAjaxTestController;
+use Hyperf\HttpServer\Router\Router;
 
-Router::addRoute(['GET', 'POST'], '/hyperfajax-test', [Hyperf AjaxTestController::class, 'index']);
+Router::addRoute(['GET', 'POST'], '/hyperfajax-test', [HyperfAjaxTestController::class, 'index']);
 ```
 
 ## Request Input
@@ -245,7 +248,7 @@ where a field-level error should appear:
 ```
 
 ```php
-use Hyperf Ajax\Exception\ValidationException;
+use Zotenme\HyperfAjax\Exception\ValidationException;
 
 public function onSave()
 {
@@ -280,28 +283,46 @@ throw new ValidationException([
 
 ## Components
 
-Controllers that use AJAX components should implement `AjaxControllerInterface`.
-The trait provides the required methods.
+`HyperfAjaxController` already implements `AjaxControllerInterface`, so a
+controller using components only needs to declare its component list:
 
 ```php
-use Hyperf Ajax\Concerns\InteractsWithAjax;
-use Hyperf Ajax\Contracts\AjaxControllerInterface;
+use Zotenme\HyperfAjax\Controller\HyperfAjaxController;
 
-class ProfileController implements AjaxControllerInterface
+class ProfileController extends HyperfAjaxController
 {
-    use InteractsWithAjax;
-
     public array $components = [
         ProfileForm::class,
     ];
 }
 ```
 
+When applying `InteractsWithAjax` directly, the class must implement
+`AjaxControllerInterface` and provide the container accessor required by the
+trait:
+
+```php
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\ContainerInterface;
+use Zotenme\HyperfAjax\Concerns\InteractsWithAjax;
+use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
+
+class ProfileController implements AjaxControllerInterface
+{
+    use InteractsWithAjax;
+
+    protected function getAjaxContainer(): ContainerInterface
+    {
+        return ApplicationContext::getContainer();
+    }
+}
+```
+
 Component:
 
 ```php
-use Hyperf Ajax\Concerns\ViewComponent;
-use Hyperf Ajax\Contracts\ViewComponentInterface;
+use Zotenme\HyperfAjax\Concerns\ViewComponent;
+use Zotenme\HyperfAjax\Contracts\ViewComponentInterface;
 
 class ProfileForm implements ViewComponentInterface
 {
@@ -322,33 +343,99 @@ HTML:
 
 ## Partials
 
-For requested partials, define `makePartialForAjax()` on the controller:
+You can always return ready HTML without a renderer:
 
 ```php
-protected function makePartialForAjax(string $partial): string
+return $this->ajax()->partial(
+    'profile/message',
+    '<div data-ajax-partial="profile/message">Updated</div>'
+);
+```
+
+For automatic rendering of names sent in `X-AJAX-PARTIALS`, bind a
+`PartialRendererInterface` implementation in `config/autoload/dependencies.php`:
+
+```php
+use App\Ajax\PlainPhpPartialRenderer;
+use Zotenme\HyperfAjax\Contracts\PartialRendererInterface;
+
+return [
+    PartialRendererInterface::class => PlainPhpPartialRenderer::class,
+];
+```
+
+The renderer is framework-neutral and receives the controller, current AJAX
+request and explicit template data:
+
+```php
+use Zotenme\HyperfAjax\AjaxRequest;
+use Zotenme\HyperfAjax\Contracts\PartialRendererInterface;
+
+final class PlainPhpPartialRenderer implements PartialRendererInterface
 {
-    return match ($partial) {
-        'profile/message' => '<div data-ajax-partial="profile/message">Updated</div>',
-        default => '',
-    };
+    public function render(
+        string $partial,
+        object $controller,
+        AjaxRequest $request,
+        array $data = []
+    ): string {
+        return '<div data-ajax-partial="' . htmlspecialchars($partial) . '">'
+            . htmlspecialchars((string) ($data['message'] ?? ''))
+            . '</div>';
+    }
 }
 ```
 
-The frontend sends requested partial names in `X-AJAX-PARTIALS`.
+Set data during the AJAX handler. It is stored only in the current coroutine
+execution context:
+
+```php
+public function onSave(): AjaxResponse
+{
+    $this->withAjaxPartialData(['message' => 'Profile saved']);
+
+    return $this->ajax()->data(['saved' => true]);
+}
+```
+
+### Using hyperf/view
+
+Install and configure `hyperf/view` and your chosen view engine, then implement
+the same contract with `Hyperf\View\RenderInterface::getContents()`:
+
+```php
+use Hyperf\View\RenderInterface;
+
+final class HyperfViewPartialRenderer implements PartialRendererInterface
+{
+    public function __construct(private readonly RenderInterface $view) {}
+
+    public function render(
+        string $partial,
+        object $controller,
+        AjaxRequest $request,
+        array $data = []
+    ): string {
+        $view = match ($partial) {
+            'profile/message' => 'partials.profile-message',
+            default => throw new InvalidArgumentException("Unknown partial [{$partial}]."),
+        };
+
+        return $this->view->getContents($view, $data);
+    }
+}
+```
+
+Complete examples for direct strings, plain PHP templates and `hyperf/view`
+are available in [`examples/PartialRendering`](examples/PartialRendering).
 
 ## Tests
 
-Run the lightweight smoke suite:
+Run the PHPUnit suite:
 
 ```bash
 composer test
 ```
 
-or:
-
-```bash
-php tests/smoke.php
-```
-
-The smoke suite checks framework-neutral behavior. Full Hyperf integration tests
-should be added once the target Hyperf application skeleton is chosen.
+The suite checks framework-neutral behavior. Full Hyperf integration tests should
+be added once the target Hyperf application skeleton is chosen.

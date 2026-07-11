@@ -46,6 +46,7 @@
         }
     },
     "suggest": {
+        "hyperf/view": "Provides template rendering for AJAX partials through a PartialRendererInterface adapter.",
         "hyperf/validation": "Required to map Hyperf validation exceptions automatically."
     },
     "minimum-stability": "stable",

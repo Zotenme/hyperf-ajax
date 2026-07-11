@@ -1,5 +1,7 @@
 # Dependencies
 /larajax/
+/hyperf/
+/hyperf-app/
 /vendor/
 composer.lock
 
@@ -33,6 +35,7 @@ clover.xml
 *.tmp
 *.temp
 project-issues/
+/AGENTS.md
 
 # Test artifacts
 tests/coverage/

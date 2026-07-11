@@ -25,6 +25,7 @@ use Zotenme\HyperfAjax\Component\ComponentContainer;
 use Zotenme\HyperfAjax\Component\ViewComponentFactory;
 use Zotenme\HyperfAjax\Contracts\AjaxControllerInterface;
 use Zotenme\HyperfAjax\Contracts\ExceptionMapperInterface;
+use Zotenme\HyperfAjax\Contracts\PartialRendererInterface;
 use Zotenme\HyperfAjax\Contracts\ViewComponentInterface;
 use Zotenme\HyperfAjax\Exception\ComponentNotFound;
 use Zotenme\HyperfAjax\Exception\HandlerNameInvalid;
@@ -154,6 +155,21 @@ trait InteractsWithAjax
         return $data[$key] ?? $default;
     }
 
+    /**
+     * @param array<string, mixed> $data
+     */
+    public function withAjaxPartialData(array $data): static
+    {
+        $context = $this->getAjaxExecutionContext();
+        if (! $context instanceof AjaxExecutionContext) {
+            throw new \RuntimeException('AJAX partial data can only be set during an active AJAX request.');
+        }
+
+        $context->partialData = array_replace($context->partialData, $data);
+
+        return $this;
+    }
+
     public function addComponentInstance(string $alias, ViewComponentInterface $instance): void
     {
         if (! $this instanceof AjaxControllerInterface) {
@@ -218,13 +234,43 @@ trait InteractsWithAjax
 
         $response = AjaxResponse::wrap($result);
 
-        if ($ajaxRequest?->partialList && method_exists($this, 'makePartialForAjax')) {
-            foreach ($ajaxRequest->partialList as $partial) {
-                $response->partial($partial, $this->makePartialForAjax($partial));
-            }
-        }
+        $this->renderRequestedAjaxPartials($response);
 
         return $response;
+    }
+
+    protected function renderRequestedAjaxPartials(AjaxResponse $response): void
+    {
+        $context = $this->getAjaxExecutionContext();
+        if (! $context instanceof AjaxExecutionContext || $context->request->partialList === []) {
+            return;
+        }
+
+        $renderer = $this->getAjaxPartialRenderer();
+        if (! $renderer instanceof PartialRendererInterface) {
+            return;
+        }
+
+        foreach ($context->request->partialList as $partial) {
+            $response->partial($partial, $renderer->render(
+                $partial,
+                $this,
+                $context->request,
+                $context->partialData
+            ));
+        }
+    }
+
+    protected function getAjaxPartialRenderer(): ?PartialRendererInterface
+    {
+        $container = $this->getAjaxContainer();
+        if (! $container->has(PartialRendererInterface::class)) {
+            return null;
+        }
+
+        $renderer = $container->get(PartialRendererInterface::class);
+
+        return $renderer instanceof PartialRendererInterface ? $renderer : null;
     }
 
     /**
