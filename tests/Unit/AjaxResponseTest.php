@@ -78,6 +78,24 @@ class AjaxResponseTest extends TestCase
         self::assertSame('yes', $actual->getHeaderLine('X-Forced'));
     }
 
+    public function testReplacesExistingContentTypeWithSingleJsonHeader(): void
+    {
+        $jsonResponse = (new Response())
+            ->withHeader('Content-Type', 'text/html; charset=utf-8')
+            ->withAddedHeader('Content-Type', 'application/json; charset=utf-8');
+        $response = $this->createMock(ResponseInterface::class);
+        $response->expects(self::once())
+            ->method('json')
+            ->willReturn($jsonResponse);
+
+        $actual = (new AjaxResponse())->toPsrResponse($response);
+
+        self::assertSame(
+            ['application/json; charset=utf-8'],
+            $actual->getHeader('Content-Type')
+        );
+    }
+
     public function testRejectsUnsupportedHandlerResult(): void
     {
         $this->expectException(\UnexpectedValueException::class);

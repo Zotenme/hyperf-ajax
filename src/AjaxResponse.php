@@ -134,7 +134,9 @@ class AjaxResponse
         }
 
         $psrResponse = $response->json($this->toArray())
-            ->withStatus($this->getStatusCode());
+            ->withStatus($this->getStatusCode())
+            ->withoutHeader('Content-Type')
+            ->withHeader('Content-Type', 'application/json; charset=utf-8');
 
         foreach ($this->getHeaders() as $name => $value) {
             $psrResponse = $psrResponse->withHeader($name, (string) $value);
